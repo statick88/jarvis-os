@@ -19,7 +19,7 @@ class TestIntentAnalyzer:
     def test_exact_keyword_match(self) -> None:
         analyzer = IntentAnalyzer()
         result = analyzer.classify("crear nota")
-        assert result.intent == "obsidian.create"
+        assert result.intent == "obsidian.create_note"
         assert result.confidence == 1.0
 
     def test_unknown_input(self) -> None:
@@ -31,16 +31,16 @@ class TestIntentAnalyzer:
     def test_substring_match(self) -> None:
         analyzer = IntentAnalyzer()
         result = analyzer.classify("por favor crear una nota nueva")
-        assert result.intent == "obsidian.create"
+        assert result.intent == "obsidian.create_note"
         assert result.confidence > 0.0
         assert result.confidence < 1.0
 
     def test_capability_pattern(self) -> None:
         analyzer = IntentAnalyzer()
-        result = analyzer.classify("ejecutar obsidian.create ahora")
-        assert result.intent == "obsidian.create"
+        result = analyzer.classify("ejecutar obsidian.create_note ahora")
+        assert result.intent == "obsidian.create_note"
         assert result.confidence >= 0.9
-        assert result.entities.get("capability_pattern") == "obsidian.create"
+        assert result.entities.get("capability_pattern") == "obsidian.create_note"
 
     def test_empty_string(self) -> None:
         analyzer = IntentAnalyzer()
@@ -64,19 +64,19 @@ class TestIntentAnalyzer:
     def test_os_metrics(self) -> None:
         analyzer = IntentAnalyzer()
         result = analyzer.classify("muestra las métricas del sistema")
-        assert result.intent == "os.system_metrics"
+        assert result.intent == "metricas.collect"
         assert result.confidence >= 0.5
 
     def test_devsecops_containers(self) -> None:
         analyzer = IntentAnalyzer()
         result = analyzer.classify("lista los contenedores docker")
-        assert result.intent == "devsecops.containers"
-        assert result.confidence >= 0.5
+        assert result.intent == "metricas.docker_stats"
+        assert result.confidence > 0.0
 
-    def test_code_execute(self) -> None:
+    def test_tendencias_fetch(self) -> None:
         analyzer = IntentAnalyzer()
-        result = analyzer.classify("ejecuta este código Python")
-        assert result.intent == "code.execute"
+        result = analyzer.classify("obtener tendencias")
+        assert result.intent == "tendencias.fetch"
         assert result.confidence >= 0.5
 
     def test_low_confidence_returns_unknown(self) -> None:

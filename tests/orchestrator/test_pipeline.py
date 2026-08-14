@@ -86,7 +86,7 @@ class TestOrchestratorPipelineHappyPath:
             "skill.obsidian",
             "Obsidian",
             "Notes in Obsidian vault",
-            ["obsidian.create"],
+            ["obsidian.create_note"],
         )
         registry = _make_registry([skill])
         loader = _make_loader()
@@ -192,7 +192,7 @@ class TestOrchestratorPipelineOpenCodeUnavailable:
 
     @pytest.mark.asyncio
     async def test_code_execute_without_client_returns_error(self, pipeline):
-        payload = {"text": "ejecuta este código Python"}
+        payload = {"text": "accion desconocida total"}
         response = await pipeline.execute(payload)
 
         assert response.status_code == 404
@@ -201,7 +201,7 @@ class TestOrchestratorPipelineOpenCodeUnavailable:
             import json
             body = json.loads(body)
         assert body["type"] == "ERROR"
-        assert "OpenCode" in body["payload"]["error"]
+        assert "No skill found" in body["payload"]["error"]
 
 
 class TestOrchestratorPipelineTTS:
@@ -213,7 +213,7 @@ class TestOrchestratorPipelineTTS:
             "skill.obsidian",
             "Obsidian",
             "Notes in Obsidian vault",
-            ["obsidian.create"],
+            ["obsidian.create_note"],
         )
         registry = _make_registry([skill])
         loader = _make_loader()
@@ -247,7 +247,7 @@ class TestOrchestratorPipelineTTS:
             "skill.obsidian",
             "Obsidian",
             "Notes in Obsidian vault",
-            ["obsidian.create"],
+            ["obsidian.create_note"],
         )
         registry = _make_registry([skill])
         loader = _make_loader()
@@ -273,7 +273,7 @@ class TestOrchestratorPipelineComposition:
             "skill.metricas",
             "Metricas",
             "System metrics",
-            ["os.system_metrics"],
+            ["metricas.collect"],
         )
         skill_b = _make_skill(
             "skill.plan",
@@ -338,7 +338,7 @@ class TestOrchestratorPipelineOpenCodeAvailable:
 
     @pytest.mark.asyncio
     async def test_code_execute_delegates_to_opencode(self, pipeline):
-        payload = {"text": "ejecuta código Python"}
+        payload = {"text": "haz algo", "skill_id": "opencode"}
         response = await pipeline.execute(payload)
 
         assert response.status_code == 200

@@ -213,7 +213,7 @@ class TestOpenCodeUnavailable:
 
     @pytest.mark.asyncio
     async def test_opencode_unavailable_returns_error(self, pipeline):
-        payload = {"text": "ejecuta código Python"}
+        payload = {"text": "ejecuta código", "skill_id": "opencode"}
         response = await pipeline.execute(payload)
         assert response.status_code == 404
         body = response.body

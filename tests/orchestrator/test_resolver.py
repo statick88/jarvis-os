@@ -103,3 +103,22 @@ class TestSkillResolver:
 
         assert result.skill is None
         assert result.confidence == 0.0
+
+    def test_substring_capability_fallback(self) -> None:
+        skill = _make_skill(
+            "skill.metricas",
+            "Métricas del Sistema",
+            "Extracción de métricas de Docker, CPU, RAM",
+            ["metricas.collect", "metricas.report"],
+        )
+        registry = SkillRegistry()
+        registry.register(skill)
+        loader = MagicMock(spec=SkillLoader)
+
+        resolver = SkillResolver(registry=registry, loader=loader)
+        result = resolver.resolve("metricas.collect", "métricas")
+
+        assert result.skill is not None
+        assert result.skill.id == "skill.metricas"
+        assert result.source == "capability"
+        assert result.confidence == 1.0

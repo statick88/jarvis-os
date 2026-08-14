@@ -55,11 +55,12 @@ def _get_voice_client() -> Any:
     return _voice_client
 
 
-def _get_pipeline() -> OrchestratorPipeline:
+def _get_pipeline(registry: SkillRegistry | None = None) -> OrchestratorPipeline:
     """Lazy-build the OrchestratorPipeline singleton."""
     global _pipeline
     if _pipeline is None:
-        registry = SkillRegistry()
+        if registry is None:
+            registry = SkillRegistry()
         loader = SkillLoader(skills_dir=Path(".skills"))
         executor = SkillExecutor(default_timeout=30)
         vc = _get_voice_client()
@@ -69,6 +70,8 @@ def _get_pipeline() -> OrchestratorPipeline:
             executor=executor,
             voice_client=vc,
         )
+    elif registry is not None and not getattr(registry, "_skills", None):
+        pass
     return _pipeline
 
 
@@ -83,7 +86,9 @@ async def lifespan(app: FastAPI):
     skill_registry = SkillRegistry()
     skill_loader = SkillLoader(skills_dir=Path(".skills"))
     try:
-        count = await skill_registry.load_from_directory(loader=skill_loader)
+        count = await skill_registry.load_from_directory(
+            skills_dir=Path(".skills"), loader=skill_loader
+        )
         logger.info("Loaded %d skills into execution registry", count)
     except Exception as exc:
         logger.warning("Could not load skills directory: %s", exc)
@@ -224,9 +229,13 @@ async def execute(payload: dict[str, Any]) -> JSONResponse:
     If the payload contains ``tts_text``, the response is streamed to the
     voice pipeline via the active session identified by ``session_id``.
     """
+    registry = getattr(app.state, "skill_registry", None)
     pipeline = getattr(app.state, "pipeline", None)
     if pipeline is None:
-        pipeline = _get_pipeline()
+        pipeline = _get_pipeline(registry=registry)
+        app.state.pipeline = pipeline
+    elif registry is not None and getattr(registry, "_skills", None):
+        pipeline._registry = registry
     return await pipeline.execute(payload)
 
 

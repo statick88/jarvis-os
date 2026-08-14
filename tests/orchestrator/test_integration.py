@@ -81,7 +81,28 @@ def _make_executor(success: bool = True) -> MagicMock:
 
 @pytest.fixture
 def client():
-    return TestClient(app)
+    import jarvis_os.orchestrator as orch_mod
+    from jarvis_os.skills.registry import SkillRegistry
+    from jarvis_os.skills.loader import SkillLoader
+    from pathlib import Path
+    import asyncio
+
+    original_get_voice = orch_mod._get_voice_client
+    orch_mod._get_voice_client = lambda: None
+
+    registry = SkillRegistry(skills_dir=Path(".skills"))
+    try:
+        asyncio.get_event_loop().run_until_complete(
+            registry.load_from_directory(skills_dir=Path(".skills"))
+        )
+    except Exception:
+        pass
+    app.state.skill_registry = registry
+
+    try:
+        yield TestClient(app)
+    finally:
+        orch_mod._get_voice_client = original_get_voice
 
 
 class TestV1ExecuteIntegration:
@@ -92,7 +113,7 @@ class TestV1ExecuteIntegration:
             "skill.obsidian",
             "Obsidian",
             "Notes in Obsidian vault",
-            ["obsidian.create"],
+            ["obsidian.create_note"],
         )
         registry = _make_registry([skill])
         loader = _make_loader()

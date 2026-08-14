@@ -42,27 +42,19 @@ class IntentAnalyzer:
     """
 
     _DEFAULT_MAP: dict[str, list[str]] = {
-        "obsidian.create": ["crear nota", "create note", "nueva nota", "new note"],
-        "obsidian.read": ["leer nota", "read note", "buscar nota", "search note"],
-        "obsidian.search": ["buscar vault", "search vault"],
-        "os.system_metrics": ["métricas del sistema", "system metrics", "cpu", "ram"],
-        "os.process_list": ["procesos", "processes", "list processes"],
-        "devsecops.containers": [
-            "contenedores",
-            "containers",
-            "docker",
-            "lista contenedores",
-        ],
-        "code.execute": [
-            "ejecutar código",
-            "ejecuta código",
-            "run code",
-            "execute code",
-            "code execute",
-        ],
+        "obsidian.create_note": ["crear nota", "create note", "nueva nota", "new note"],
+        "obsidian.read_note": ["leer nota", "read note", "buscar nota", "search note"],
+        "obsidian.search_vault": ["buscar vault", "search vault"],
+        "metricas.collect": ["métricas del sistema", "system metrics", "cpu", "ram"],
+        "metricas.report": ["reporte métricas", "metrics report"],
+        "metricas.docker_stats": ["docker stats", "contenedores"],
+        "metricas.host_stats": ["host stats", "máquina"],
         "plan.create": ["crear plan", "create plan", "plan diario", "daily plan"],
         "plan.read": ["leer plan", "read plan", "ver plan"],
         "tendencias.fetch": ["tendencias", "trends", "fetch trends"],
+        "tendencias.analyze": ["analizar tendencias", "analyze trends"],
+        "bandeja.capture": ["capturar", "capture", "guardar en bandeja"],
+        "boveda.search": ["buscar en vault", "search vault", "buscar bóveda"],
     }
 
     def __init__(
