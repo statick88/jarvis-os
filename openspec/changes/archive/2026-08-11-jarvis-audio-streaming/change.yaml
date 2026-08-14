@@ -1,0 +1,9 @@
+id: jarvis-audio-streaming
+title: Streaming de Audio Bidireccional y Baja Latencia
+status: active
+phase: propose
+created_at: "2026-08-11"
+updated_at: "2026-08-11"
+description: Implementar streaming bidireccional STT/TTS con WebSocket/gRPC, buffer de audio en Flutter y wake-word local
+dependencies: []
+blockers: []

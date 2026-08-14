@@ -1,0 +1,10 @@
+id: jarvis-runtime-hardening
+title: Runtime Hardening y Estabilización de Microservicios
+status: active
+phase: propose
+created_at: "2026-08-11"
+updated_at: "2026-08-11"
+description: >
+  Hardening del entorno runtime Docker post-FASE 9: resolver deuda técnica,
+  sincronizar contexto vivo y asegurar disponibilidad 100% operativa de la pila
+  de microservicios E2E.

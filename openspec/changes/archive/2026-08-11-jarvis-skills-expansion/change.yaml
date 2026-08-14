@@ -1,0 +1,13 @@
+id: jarvis-skills-expansion
+title: "Expansión de Skills: Obsidian, OS Control y DevSecOps"
+status: active
+created_at: "2026-08-11"
+description: "Nuevas habilidades operativas para gestión de notas Obsidian, control del sistema macOS y automatización DevSecOps con LocalStack/Docker."
+quality_gates:
+  max_critical_errors: 0
+  max_high_errors: 2
+  min_coverage_percentage: 80
+affected_modules:
+  - jarvis_os/skills/
+  - jarvis_ui/
+  - docker/

@@ -1,0 +1,75 @@
+schema: spec-driven
+
+context: |
+  Tech stack: Python FastAPI backend (jarvis_os/), Flutter/Dart client (jarvis_ui/ for macOS + Android), Docker Compose orchestration with LocalStack (floci/).
+  Architecture: Microservices in Docker (gentle-orchestrator, voice-pipeline, floci-localstack) connected via REST/gRPC. Host macOS M5 interacts through docker network and direct port bindings (3000, 8080, 4566). Vault persistence via mounted volumes.
+  Testing: E2E shell script (scripts/test_jarvis_pipeline.sh), Flutter analyze + flutter test for client, Python backend currently has no formal test runner detected.
+  Style: Conventional commits, spec-first SDD, zero secrets in code, offline-first voice pipeline.
+
+strict_tdd: false
+
+testing:
+  strict_tdd: false
+  detected_at: "2026-08-09"
+  runner:
+    - name: Flutter test
+      command: "flutter test"
+      path: "jarvis_ui/"
+    - name: E2E shell script
+      command: "bash scripts/test_jarvis_pipeline.sh"
+      path: "scripts/"
+  layers:
+    unit:
+      available: true
+      tool: "flutter test"
+    integration:
+      available: false
+      tool: "—"
+    e2e:
+      available: true
+      tool: "bash scripts/test_jarvis_pipeline.sh"
+  coverage:
+    available: false
+    command: "—"
+  quality_tools:
+    - name: flutter analyze
+      command: "flutter analyze"
+      available: true
+      path: "jarvis_ui/"
+    - name: flutter_lints
+      command: "flutter analyze"
+      available: true
+      path: "jarvis_ui/"
+    - name: shellcheck
+      command: "—"
+      available: false
+
+rules:
+  proposal:
+    - Include rollback plan for risky changes
+    - Describe platform-specific impacts (macOS vs Android)
+  specs:
+    - Use Given/When/Then for scenarios
+    - Use RFC 2119 keywords (MUST, SHALL, SHOULD, MAY)
+    - Cover REST endpoints and mobile client contracts
+  design:
+    - Include sequence diagrams for complex flows
+    - Document architecture decisions with rationale
+    - Address cross-platform constraints (macOS entitlements, Android permissions)
+  tasks:
+    - Group by phase, use hierarchical numbering
+    - Keep tasks completable in one session
+    - Separate backend tasks from Flutter UI tasks
+  apply:
+    guidelines:
+      - Follow existing code patterns
+      - Maintain backward compatibility with existing API contracts
+    tdd: false
+    test_command: "flutter test"
+  verify:
+    test_command: "flutter test && bash scripts/test_jarvis_pipeline.sh"
+    build_command: "flutter build macos && flutter build apk"
+    coverage_threshold: 0
+  archive:
+    - Warn before merging destructive deltas
+    - Preserve backwards compatibility for API contracts

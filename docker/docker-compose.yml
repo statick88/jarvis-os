@@ -1,0 +1,160 @@
+version: '3.8'
+
+services:
+  gentle-orchestrator:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.gentle
+      target: production
+    container_name: jarvis_orchestrator
+    hostname: jarvis-orchestrator
+    ports:
+      - "127.0.0.1:3000:3000"
+    volumes:
+      - ../vault:/app/vault:rw
+      - ../.skills:/app/.skills:ro
+      - ../jarvis_os:/app/jarvis_os:ro
+      - ../spec/contracts:/app/spec/contracts:ro
+    environment:
+      - OPENCODE_HOST=http://host.docker.internal:8081
+      - KILO_HOST=http://host.docker.internal:8082
+      - AWS_ENDPOINT_URL=http://floci-localstack:4566
+      - AWS_ACCESS_KEY_ID=test
+      - AWS_SECRET_ACCESS_KEY=test
+      - AWS_DEFAULT_REGION=us-east-1
+      - JARVIS_TOKEN=${JARVIS_TOKEN:-changeme-secure-token}
+      - LOG_LEVEL=INFO
+      - PYTHONUNBUFFERED=1
+      - NODE_ENV=production
+    env_file:
+      - ../.env
+    depends_on:
+      floci-localstack:
+        condition: service_healthy
+      voice-pipeline:
+        condition: service_healthy
+    networks:
+      - jarvis-net
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '1.5'
+          memory: 2G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    read_only: false
+    tmpfs:
+      - /tmp:exec,size=100M
+      - /app/cache:size=50M
+
+  voice-pipeline:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.voice
+      target: production
+    container_name: jarvis_voice
+    hostname: jarvis-voice
+    ports:
+      - "8080:8080"
+    volumes:
+      - voice_models:/models:rw
+      - /Users/statick/dev/jarvis-os/voice_models/whisper:/models/whisper:rw
+      # - /Users/statick/dev/jarvis-os/voice_models/kokoro:/models/kokoro:rw
+    environment:
+      - WHISPER_MODEL=base
+      - WHISPER_LANGUAGE=es
+      - PIPER_VOICE=es_ES-pacifico
+      - KOKORO_VOICE=kokoro-es
+      - SAMPLE_RATE=22050
+      - LOG_LEVEL=info
+      - PYTHONUNBUFFERED=1
+    networks:
+      - jarvis-net
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 4G
+        reservations:
+          cpus: '0.5'
+          memory: 1G
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    # GPU/Metal access para Apple Silicon (requiere Docker Desktop con Rosetta/Metal)
+    # device_cgroup_rules:
+    #   - 'c 226:* rwm'  # /dev/dri para GPU
+
+  floci-localstack:
+    image: localstack/localstack:3.5
+    container_name: jarvis_floci
+    hostname: jarvis-floci
+    ports:
+      - "127.0.0.1:4566:4566"
+      - "127.0.0.1:4510-4559:4510-4559"
+    environment:
+      - SERVICES=s3,sqs,sts
+      - DEBUG=1
+      - DOCKER_HOST=unix:///var/run/docker.sock
+      - AWS_ACCESS_KEY_ID=test
+      - AWS_SECRET_ACCESS_KEY=test
+      - AWS_DEFAULT_REGION=us-east-1
+      - LOCALSTACK_HOSTNAME=floci-localstack
+    volumes:
+      - "${LOCALSTACK_VOLUME_DIR:-./volume}:/var/lib/localstack"
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ../floci/init-aws-resources.sh:/etc/localstack/init/ready.d/init-aws-resources.sh:ro
+    networks:
+      - jarvis-net
+    healthcheck:
+      test: ["CMD", "awslocal", "sts", "get-caller-identity"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 30s
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 1G
+        reservations:
+          cpus: '0.25'
+          memory: 256M
+
+networks:
+  jarvis-net:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.28.0.0/16
+    driver_opts:
+      com.docker.network.bridge.name: jarvis-br0
+
+volumes:
+  voice_models:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: /Users/statick/dev/jarvis-os/voice_models

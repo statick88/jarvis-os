@@ -1,0 +1,49 @@
+id: jarvis-orchestrator-real
+title: Replace Orchestrator Stub with Real Pipeline
+status: active
+phase: apply
+created_at: "2026-08-13"
+updated_at: "2026-08-13"
+description: >
+  Replace the minimal orchestrator stub with a real execution pipeline:
+  intent analysis → skill routing → execution → response formatting.
+  Integrate OpenCode runtime. Maintain backward compatibility.
+
+verification_verdict: pass-with-notes
+retry_count: 0
+
+phases:
+  explore: completed
+  propose: completed
+  spec: completed
+  design: completed
+  tasks: completed
+  apply: completed
+  verify: completed
+  archive: in_progress
+
+dependencies: []
+blockers: []
+
+delivery_strategy:
+  type: feature-branch-chain
+  ask_on_risk: true
+  chain_strategy: feature-branch-chain
+  chained_prs: true
+  decision_needed: true
+  user_decision: "feature-branch-chain"
+  work_units:
+    - name: "Foundation (errors, intent, resolver)"
+      base: "feature/jarvis-orchestrator-real"
+      pr: 1
+      rollback: "Remove jarvis_os/orchestrator/ package"
+    - name: "Pipeline core + executor/OpenCode wiring"
+      base: "feature/jarvis-orchestrator-real"
+      pr: 2
+      rollback: "Revert jarvis_os/orchestrator.py /v1/execute"
+    - name: "Integration + TTS + E2E tests"
+      base: "feature/jarvis-orchestrator-real"
+      pr: 3
+      rollback: "Revert jarvis_os/orchestrator.py"
+
+correction_plan: []

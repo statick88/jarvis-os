@@ -1,0 +1,14 @@
+id: v1.0.0-release
+title: "Release Base v1.0.0 de Jarvis-OS"
+status: active
+created_at: "2026-08-09"
+description: "Implementación completa de FASE 0 a FASE 5: core Python, vault, skills, HUD TUI, infraestructura Docker ARM64 y suite de pruebas E2E."
+quality_gates:
+  max_critical_errors: 0
+  max_high_errors: 2
+  min_coverage_percentage: 80
+affected_modules:
+  - jarvis_os/
+  - docker/
+  - floci/
+  - spec/

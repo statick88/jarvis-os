@@ -1,0 +1,17 @@
+id: jarvis-skills-refactor
+status: completed
+phase: archive
+created_at: "2026-08-11"
+updated_at: "2026-08-11"
+phases:
+  explore: pending
+  propose: completed
+  spec: completed
+  design: completed
+  tasks: completed
+  apply: completed
+  verify: completed
+  archive: pending
+dependencies:
+  - jarvis-skills-expansion
+blockers: []

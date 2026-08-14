@@ -1,0 +1,32 @@
+site_name: jarvis-os Documentation
+site_description: Personal OS orchestrated by voice and Markdown (Free Software - GPL v3.0)
+site_author: Diego Medardo Saavedra García
+site_url: https://<tu-usuario-github>.github.io/jarvis-os/
+repo_url: https://github.com/<tu-usuario-github>/jarvis-os
+repo_name: <tu-usuario-github>/jarvis-os
+
+theme:
+  name: material
+  palette:
+    primary: indigo
+    accent: blue
+  features:
+    - navigation.tabs
+    - navigation.sections
+    - search.suggest
+    - search.highlight
+    - content.code.copy
+
+nav:
+  - Inicio: index.md
+  - Guía de Inicio Rápido: getting-started.md
+  - Arquitectura del Sistema: architecture.md
+  - Habilidades (Skills): skills.md
+  - Contribuir: contributing.md
+  - Licencia GPL v3.0: license.md
+
+markdown_extensions:
+  - pymdownx.highlight
+  - pymdownx.superfences
+  - pymdownx.tabbed
+  - admonition

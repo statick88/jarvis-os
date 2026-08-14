@@ -1,0 +1,18 @@
+id: jarvis-ui-flutter
+status: archived
+phase: archive
+created_at: "2026-08-09"
+updated_at: "2026-08-11"
+archived_at: "2026-08-11"
+archive_path: "openspec/changes/archive/2026-08-11-jarvis-ui-flutter/"
+phases:
+  explore: completed
+  propose: completed
+  spec: completed
+  design: completed
+  tasks: completed
+  apply: completed
+  verify: completed
+  archive: completed
+dependencies: []
+blockers: []

@@ -1,0 +1,156 @@
+# ============================================================================
+# JARVIS-OS — Dockerfile.gentle
+# Multi-stage build para gentle-orchestrator (Node.js + Python)
+# Optimizado para ARM64 (Apple Silicon M5)
+# ============================================================================
+
+# ============================================================================
+# STAGE 1: Base deps (Node + Python)
+# ============================================================================
+FROM node:20-alpine AS base-deps
+
+# Instalar dependencias del sistema
+RUN apk add --no-cache \
+    python3 \
+    py3-pip \
+    py3-virtualenv \
+    git \
+    curl \
+    bash \
+    tzdata \
+    ca-certificates \
+    && rm -rf /var/cache/apk/*
+
+# Configurar zona horaria
+ENV TZ=America/New_York
+
+# Directorio de trabajo
+WORKDIR /app
+
+# ============================================================================
+# STAGE 2: Python dependencies
+# ============================================================================
+FROM base-deps AS python-deps
+
+# Crear virtualenv para aislamiento
+RUN python3 -m venv /opt/venv
+ENV PATH="/opt/venv/bin:$PATH"
+
+# Upgrade pip y setuptools (sin pkg_resources moderno)
+RUN pip install --no-cache-dir --upgrade "pip<25" "setuptools<70" wheel
+
+# Instalar dependencias Python base
+RUN apk add --no-cache g++ musl-dev linux-headers python3-dev && \
+    pip install --no-cache-dir \
+    pydantic==2.8.2 \
+    pydantic-settings==2.3.4 \
+    httpx==0.27.0 \
+    aiohttp==3.9.5 \
+    aiofiles==24.1.0 \
+    pyyaml==6.0.2 \
+    python-dotenv==1.0.1 \
+    structlog==24.1.0 \
+    tenacity==8.3.0 \
+    prometheus-client==0.19.0 \
+    "opentelemetry-api>=1.28.0" \
+    "opentelemetry-sdk>=1.28.0" \
+    "opentelemetry-exporter-otlp>=1.28.0" \
+    "grpcio>=1.64.0" \
+    "grpcio-tools>=1.64.0" \
+    "protobuf>=4.25.0" \
+    fastapi==0.111.0 \
+    uvicorn==0.30.1 \
+    watchfiles==0.21.0 \
+    psutil==5.9.8 \
+    boto3==1.34.0 \
+    docker==7.1.0
+
+# ============================================================================
+# STAGE 3: Node dependencies
+# ============================================================================
+FROM base-deps AS node-deps
+
+WORKDIR /app
+
+# Copiar package files
+COPY package*.json ./
+
+# Instalar dependencias de producción
+RUN npm ci --only=production --ignore-scripts 2>/dev/null || \
+    (npm install --only=production --ignore-scripts && npm cache clean --force)
+RUN mkdir -p /app/node_modules
+
+# ============================================================================
+# STAGE 4: Build TypeScript / Compile protos
+# ============================================================================
+FROM node-deps AS builder
+
+# Instalar dev dependencies para build
+RUN npm ci --ignore-scripts 2>/dev/null || npm install --ignore-scripts
+
+# Copiar código fuente
+COPY jarvis_os/ ./jarvis_os/
+COPY spec/contracts/ ./spec/contracts/
+COPY tsconfig*.json ./
+
+# Compilar protos (genera stubs TypeScript/Python)
+RUN npx grpc_tools_node_protoc \
+    --plugin=protoc-gen-ts=./node_modules/.bin/protoc-gen-ts \
+    --ts_out=./jarvis_os/voice_bridge/gen \
+    --proto_path=./spec/contracts \
+    ./spec/contracts/voice_api.proto 2>/dev/null || echo "Proto compile skipped (no ts plugin)"
+
+# Build TypeScript si existe
+RUN npm run build 2>/dev/null || echo "No build script, skipping"
+
+# ============================================================================
+# STAGE 5: Production image
+# ============================================================================
+FROM base-deps AS production
+
+# Copiar virtualenv de Python
+COPY --from=python-deps /opt/venv /opt/venv
+ENV PATH="/opt/venv/bin:$PATH"
+
+# Copiar node_modules de producción
+COPY --from=node-deps /app/node_modules ./node_modules
+
+# Copiar código compilado
+COPY --from=builder /app/jarvis_os ./jarvis_os
+RUN cp -r /app/dist /app/dist 2>/dev/null || true
+
+# Copiar contratos y configuración
+COPY spec/contracts ./spec/contracts
+COPY .skills ./.skills
+
+# Entrypoint (antes de cambiar usuario para poder chmod)
+COPY docker/entrypoint.gentle.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
+
+# Crear usuario no-root (usar 1001 para evitar conflicto con gid 1000)
+RUN addgroup -g 1001 -S jarvis || true && \
+    adduser -u 1001 -S jarvis -G jarvis || true && \
+    mkdir -p /app/vault /app/cache /app/logs && \
+    chown -R jarvis:jarvis /app 2>/dev/null || true
+
+# Cambiar a usuario no-root
+USER jarvis
+
+# Variables de entorno por defecto
+ENV PYTHONUNBUFFERED=1 \
+    NODE_ENV=production \
+    LOG_LEVEL=INFO \
+    PORT=3000 \
+    PYTHONPATH=/app:/app/jarvis_os
+
+# Exponer puerto
+EXPOSE 3000
+
+# Healthcheck endpoint (implementado en código)
+HEALTHCHECK --interval=30s --timeout=10s --start-period=20s --retries=3 \
+    CMD curl -f http://localhost:3000/health || exit 1
+
+WORKDIR /app
+
+ENTRYPOINT ["/entrypoint.sh"]
+CMD ["python", "-m", "jarvis_os.orchestrator"]

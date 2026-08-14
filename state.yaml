@@ -1,0 +1,46 @@
+# JARVIS-OS — State Snapshot
+
+active_change: jarvis-runtime-hardening
+phase: verify
+status: in_progress
+
+verification_baseline:
+  test_jarvis_pipeline:
+    target: "0 FAIL, 0 SKIP"
+    status: pending
+  test_audio_streaming:
+    target: "0 FAIL, 0 SKIP"
+    status: pending
+  gentle_ai_doctor:
+    target: "0 CRITICAL"
+    status: passed
+
+binary_availability:
+  whisper_cli: verified_in_dockerfile
+  piper: verified_in_dockerfile
+  kokoro: verified_in_dockerfile
+
+service_health:
+  gentle_orchestrator: healthy
+  voice_pipeline: fail_hard_configured
+  floci_localstack: healthy
+
+context_sync:
+  fase_8_followup: completed
+  fase_9: completed
+  jarvis_ui_flutter: completed
+  definition_of_done: updated
+
+implementation_summary:
+  phase_1_docker:
+    - .agents: dual compose capability documented
+    - entrypoint.voice.sh: fail-hard on missing whisper-cli or both TTS engines
+    - Dockerfile.voice: removed || echo fallbacks, added retry for kokoro model download
+    - docker-compose.yml: bind mounts for /models/whisper and /models/kokoro
+  phase_2_orchestrator:
+    - orchestrator_client.py: session-pooled WS client (max 10, idle 300s)
+    - orchestrator.py: /v1/audio/session/* REST routes + extended /health
+    - TTS streaming integrated into /v1/execute pipeline
+  phase_3_e2e:
+    - test_audio_streaming.sh: pre-flight binary check, log_fail on missing deps
+    - test_jarvis_pipeline.sh: test_stt_tts_binaries(), fail-hard on critical deps

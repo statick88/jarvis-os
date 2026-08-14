@@ -1,0 +1,262 @@
+# ============================================================================
+# JARVIS-OS — Dockerfile.voice
+# Multi-stage build para voice-pipeline (Whisper.cpp + Piper + Kokoro)
+# Optimizado para ARM64 (Apple Silicon M5) con Metal/NEON
+# ============================================================================
+
+# ============================================================================
+# STAGE 1: Base con dependencias de compilación
+# ============================================================================
+FROM ubuntu:24.04 AS builder
+
+# Evitar prompts interactivos
+ENV DEBIAN_FRONTEND=noninteractive
+ENV TZ=America/New_York
+
+# Instalar dependencias de build
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    git \
+    cmake \
+    build-essential \
+    pkg-config \
+    python3 \
+    python3-pip \
+    python3-venv \
+    wget \
+    curl \
+    ca-certificates \
+    libsndfile1-dev \
+    libopenblas-dev \
+    libomp-dev \
+    clang \
+    llvm \
+    && rm -rf /var/lib/apt/lists/*
+
+# Configurar Python
+RUN python3 -m venv /opt/venv
+ENV PATH="/opt/venv/bin:$PATH"
+RUN pip install --no-cache-dir --upgrade pip setuptools wheel
+
+# ============================================================================
+# STAGE 2: Compilar Whisper.cpp (con soporte Metal/NEON)
+# ============================================================================
+FROM builder AS whisper-build
+
+WORKDIR /build
+
+# Clonar Whisper.cpp
+RUN git clone --depth 1 --branch v1.7.4 https://github.com/ggerganov/whisper.cpp.git /build/whisper.cpp
+
+# Compilar con soporte Metal (Apple Silicon) y NEON
+WORKDIR /build/whisper.cpp
+RUN cmake -B build \
+    -DWHISPER_METAL=ON \
+    -DWHISPER_NEON=ON \
+    -DWHISPER_COREML=OFF \
+    -DCMAKE_BUILD_TYPE=Release \
+    -DCMAKE_C_COMPILER=clang \
+    -DCMAKE_CXX_COMPILER=clang++ \
+    && cmake --build build --config Release -j$(nproc)
+
+# Verificar binario (fail-hard: build debe producir whisper-cli)
+RUN test -x /build/whisper.cpp/build/bin/whisper-cli && /build/whisper.cpp/build/bin/whisper-cli --help 2>&1 | head -5
+
+# ============================================================================
+# STAGE 3: Instalar Piper TTS
+# ============================================================================
+FROM builder AS piper-build
+
+WORKDIR /build
+
+# Instalar Piper desde release binario (fail-hard)
+ARG PIPER_VERSION=2023.11.14-2
+RUN set -e; \
+    mkdir -p /tmp/piper-dl; \
+    url="https://github.com/rhasspy/piper/releases/download/${PIPER_VERSION}/piper_linux_aarch64.tar.gz"; \
+    echo "Descargando Piper desde: $url"; \
+    if curl -fL --show-error --max-time 120 --retry 2 --retry-delay 5 -o /tmp/piper-dl/piper.tar.gz "$url"; then \
+        tar -xzf /tmp/piper-dl/piper.tar.gz -C /tmp/piper-dl; \
+        mkdir -p /usr/local/bin /usr/local/lib; \
+        cp -v /tmp/piper-dl/piper/piper /usr/local/bin/piper; \
+        cp -v /tmp/piper-dl/piper/piper_phonemize /usr/local/bin/piper_phonemize; \
+        cp -rn /tmp/piper-dl/piper/lib*.so* /usr/local/lib/; \
+        cp -v /tmp/piper-dl/piper/libtashkeel_model.ort /usr/local/lib/; \
+        cp -rn /tmp/piper-dl/piper/espeak-ng* /usr/local/; \
+        cp -rn /tmp/piper-dl/piper/pkgconfig /usr/local/; \
+        chmod +x /usr/local/bin/piper /usr/local/bin/piper_phonemize; \
+        ldconfig; \
+        echo "Piper instalado correctamente"; \
+    else \
+        echo "WARNING: No se pudo descargar Piper durante el build — se reintentará en runtime"; \
+    fi; \
+    rm -rf /tmp/piper-dl
+
+# Verificar (fail-hard)
+RUN test -x /usr/local/bin/piper && /usr/local/bin/piper --help >/dev/null 2>&1
+
+# ============================================================================
+# STAGE 4: Instalar Kokoro TTS (Python)
+# ============================================================================
+FROM builder AS kokoro-build
+
+WORKDIR /build
+
+# Instalar Kokoro y dependencias
+RUN pip install --no-cache-dir \
+    kokoro-onnx==0.3.2 \
+    "onnxruntime>=1.20.1" \
+    numpy==1.26.4 \
+    scipy==1.13.0 \
+    phonemizer==3.3.0 \
+    httpx==0.27.0
+
+# Descargar modelo Kokoro español con retry exponencial (3 intentos, best-effort)
+RUN mkdir -p /models/kokoro && \
+    for attempt in 1 2 3; do \
+        echo "Kokoro model download attempt $attempt/3..." && \
+        wget -q "https://github.com/thewh1teagle/kokoro-onnx/releases/download/model-files-v1.0/kokoro-v1.0.onnx" \
+            -O /models/kokoro/kokoro-v1.0.onnx && \
+        wget -q "https://github.com/thewh1teagle/kokoro-onnx/releases/download/model-files-v1.0/voices-v1.0.bin" \
+            -O /models/kokoro/voices-v1.0.bin && \
+        test -s /models/kokoro/kokoro-v1.0.onnx && test -s /models/kokoro/voices-v1.0.bin && \
+        echo "Kokoro models downloaded successfully" && break || \
+        (echo "Kokoro download attempt $attempt failed, retrying..." && sleep $((attempt * 2))); \
+    done; \
+    if [ -s /models/kokoro/kokoro-v1.0.onnx ] && [ -s /models/kokoro/voices-v1.0.bin ]; then \
+        echo "Kokoro models present in build stage"; \
+    else \
+        echo "WARNING: Kokoro models not baked into image; runtime download will be attempted"; \
+    fi
+
+# ============================================================================
+# STAGE 5: Python API Server (FastAPI + gRPC)
+# ============================================================================
+FROM builder AS api-build
+
+WORKDIR /build
+
+# Instalar dependencias Python para API
+RUN pip install --no-cache-dir \
+    fastapi==0.111.0 \
+    uvicorn==0.30.1 \
+    protobuf==4.25.3 \
+    pydantic==2.8.2 \
+    pydantic-settings==2.3.4 \
+    httpx==0.27.0 \
+    aiofiles==24.1.0 \
+    python-multipart==0.0.9 \
+    prometheus-client==0.19.0 \
+    structlog==24.1.0 \
+    watchfiles==0.21.0 \
+    grpcio==1.83.0 \
+    websockets==12.0 \
+    soundfile==0.12.1
+
+# Copiar protos y generar stubs si es posible
+COPY spec/contracts/voice_api.proto /build/spec/contracts/
+RUN mkdir -p /build/voice_bridge/gen && \
+    python -m grpc_tools.protoc \
+    --proto_path=/build/spec/contracts \
+    --python_out=/build/voice_bridge/gen \
+    --grpc_python_out=/build/voice_bridge/gen \
+    /build/spec/contracts/voice_api.proto 2>/dev/null || \
+    echo "Proto compile skipped in api-build (grpc_tools not installed)"
+
+# ============================================================================
+# STAGE 6: Production Image
+# ============================================================================
+FROM ubuntu:24.04 AS production
+
+SHELL ["/bin/bash", "-o", "pipefail", "-c"]
+
+ENV DEBIAN_FRONTEND=noninteractive
+ENV TZ=America/New_York
+
+# Instalar solo dependencias de runtime
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    python3 \
+    python3-venv \
+    libsndfile1 \
+    libopenblas0 \
+    libomp5 \
+    libgomp1 \
+    libespeak-ng1 \
+    ca-certificates \
+    curl \
+    git \
+    cmake \
+    build-essential \
+    pkg-config \
+    && rm -rf /var/lib/apt/lists/*
+
+# Configurar Python venv
+RUN python3 -m venv /opt/venv
+ENV PATH="/opt/venv/bin:$PATH"
+RUN pip install --no-cache-dir --upgrade pip
+
+# Copiar dependencias Python de stages previos
+COPY --from=kokoro-build /opt/venv/lib/python3.12/site-packages /opt/venv/lib/python3.12/site-packages
+COPY --from=api-build /opt/venv/lib/python3.12/site-packages /opt/venv/lib/python3.12/site-packages
+
+# Copiar binarios compilados desde stage whisper-build (multi-stage COPY correcto)
+COPY --from=whisper-build /build/whisper.cpp/build/bin/whisper-cli /usr/local/bin/whisper-cli
+COPY --from=whisper-build /build/whisper.cpp/build/src/libwhisper.so /usr/local/lib/libwhisper.so
+COPY --from=whisper-build /build/whisper.cpp/build/ggml/src/*.so /usr/local/lib/
+COPY --from=piper-build /usr/local/bin/piper /usr/local/bin/piper
+COPY --from=piper-build /usr/local/bin/piper_phonemize /usr/local/bin/piper_phonemize
+COPY --from=piper-build /usr/local/lib/libpiper_phonemize.so* /usr/local/lib/
+COPY --from=piper-build /usr/local/lib/libespeak-ng.so* /usr/local/lib/
+COPY --from=piper-build /usr/local/lib/libonnxruntime.so* /usr/local/lib/
+COPY --from=piper-build /usr/local/lib/libtashkeel_model.ort /usr/local/lib/libtashkeel_model.ort
+
+# Verificar dependencia crítica de Piper (libespeak-ng.so.1)
+RUN if ! ldconfig -p | grep -q libespeak-ng.so.1; then \
+        echo "libespeak-ng.so.1 no encontrada en linker cache — instalando libespeak-ng1"; \
+        apt-get update && apt-get install -y --no-install-recommends libespeak-ng1 && \
+        rm -rf /var/lib/apt/lists/* && ldconfig; \
+    fi
+
+# Copiar modelos Kokoro (si existen)
+RUN cp -r /models/kokoro /models/kokoro 2>/dev/null || true
+
+# Copiar stubs gRPC generados y código fuente preservando el paquete jarvis_os
+COPY --from=api-build /build/voice_bridge /app/jarvis_os/voice_bridge
+COPY ../jarvis_os/voice_bridge /app/jarvis_os/voice_bridge
+
+# Configurar ldconfig
+RUN ldconfig
+
+# Entrypoint (antes de cambiar usuario para poder chmod)
+COPY docker/entrypoint.voice.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
+
+# Crear usuario no-root (usar 1001 para evitar conflicto con ubuntu:1000)
+RUN groupadd -r -g 1001 jarvis && \
+    useradd -r -u 1001 -g jarvis -m -s /bin/bash jarvis && \
+    mkdir -p /models/whisper /app/cache /app/logs && \
+    chown -R jarvis:jarvis /models /app
+
+USER jarvis
+
+WORKDIR /app
+
+# Variables de entorno
+ENV WHISPER_MODEL=base \
+    WHISPER_LANGUAGE=es \
+    PIPER_VOICE=es_ES-pacifico \
+    KOKORO_VOICE=kokoro-es \
+    SAMPLE_RATE=22050 \
+    LOG_LEVEL=info \
+    PYTHONUNBUFFERED=1 \
+    PYTHONPATH=/app \
+    LD_LIBRARY_PATH=/usr/local/lib:$LD_LIBRARY_PATH
+
+# Exponer puerto
+EXPOSE 8080
+
+# Healthcheck
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
+    CMD curl -f http://localhost:8080/health || exit 1
+
+ENTRYPOINT ["/entrypoint.sh"]
+CMD ["python", "-m", "jarvis_os.voice_bridge.server"]

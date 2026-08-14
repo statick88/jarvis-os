@@ -1,0 +1,237 @@
+syntax = "proto3";
+
+package jarvis.voice.v1;
+
+option go_package = "github.com/jarvis-os/voice-bridge/gen/go";
+// option python_package = "jarvis_os.voice_bridge.gen";  // Set via --python_out flag
+option java_package = "com.jarvisos.voicebridge.gen";
+option java_multiple_files = true;
+
+// VoicePipeline provides Speech-to-Text and Text-to-Speech services
+// optimized for local execution on Apple Silicon (ARM64 + Metal).
+service VoicePipeline {
+  // StreamSTT performs streaming speech recognition.
+  // Client sends AudioChunk messages, server returns incremental STTResponse.
+  // Use is_final=true on the last chunk to get final result.
+  rpc StreamSTT(stream AudioChunk) returns (stream STTResponse) {}
+
+  // Transcribe performs one-shot transcription of complete audio data.
+  // Preferred for short utterances (< 30s) or file-based input.
+  rpc Transcribe(TranscribeRequest) returns (STTResponse) {}
+
+  // StreamTTS performs streaming speech synthesis.
+  // Client sends TTSRequest, server streams AudioChunk responses.
+  rpc StreamTTS(TTSRequest) returns (stream AudioChunk) {}
+
+  // Synthesize performs one-shot speech synthesis returning complete audio.
+  rpc Synthesize(TTSRequest) returns (SynthesizeResponse) {}
+
+  // Health returns service health status and loaded model info.
+  rpc Health(HealthRequest) returns (HealthResponse) {}
+
+  // ListModels returns available STT models and TTS voices.
+  rpc ListModels(ListModelsRequest) returns (ListModelsResponse) {}
+}
+
+// ============================================================================
+// STT (Speech-to-Text) Messages
+// ============================================================================
+
+// AudioChunk represents a piece of audio data for streaming.
+// Format: PCM 16kHz, 16-bit signed little-endian, mono.
+// Recommended chunk size: 1600 samples (100ms at 16kHz).
+message AudioChunk {
+  // Raw audio bytes (PCM 16kHz 16-bit mono)
+  bytes data = 1;
+
+  // True if this is the last chunk in the stream.
+  // Server will return final transcription with is_final=true.
+  bool is_final = 2;
+
+  // Session identifier for streaming correlation.
+  // Generate a UUIDv4 per streaming session.
+  string session_id = 3;
+
+  // Optional: timestamp of first sample in chunk (Unix ms).
+  // Helps with alignment in multi-speaker scenarios.
+  int64 timestamp_ms = 4;
+}
+
+// TranscribeRequest for one-shot transcription.
+message TranscribeRequest {
+  // Complete audio data (WAV with header, or raw PCM if format=pcm).
+  bytes audio_data = 1;
+
+  // STT model to use. Options: "whisper-tiny", "whisper-base", "whisper-small", "whisper-medium".
+  // Default: "whisper-base" (balance of speed/accuracy on ARM64).
+  string model = 2;
+
+  // Language hint (ISO 639-1): "es", "en", "auto" for auto-detect.
+  // Default: "auto".
+  string language = 3;
+
+  // Sampling temperature for decoding (0.0 = deterministic, 1.0 = more random).
+  // Default: 0.0.
+  float temperature = 4;
+
+  // Audio format hint: "wav", "pcm", "ogg", "mp3".
+  // Default: "wav" (with header).
+  string format = 5;
+
+  // Enable word-level timestamps in response.
+  // Default: false.
+  bool word_timestamps = 6;
+}
+
+// STTResponse contains transcription results.
+message STTResponse {
+  // Transcribed text.
+  string text = 1;
+
+  // Overall confidence score (0.0 - 1.0).
+  float confidence = 2;
+
+  // Detected language (ISO 639-1).
+  string language = 3;
+
+  // Duration of processed audio in milliseconds.
+  int64 duration_ms = 4;
+
+  // True if this is the final result (streaming) or only result (unary).
+  bool is_final = 5;
+
+  // Word-level timestamps (populated if word_timestamps=true in request).
+  repeated WordTimestamp words = 6;
+
+  // Segment-level timestamps for longer audio.
+  repeated SegmentTimestamp segments = 7;
+}
+
+// WordTimestamp for word-level alignment.
+message WordTimestamp {
+  string word = 1;
+  float start_ms = 2;
+  float end_ms = 3;
+  float confidence = 4;
+}
+
+// SegmentTimestamp for segment-level alignment (Whisper native segments).
+message SegmentTimestamp {
+  string text = 1;
+  float start_ms = 2;
+  float end_ms = 3;
+  float avg_confidence = 4;
+  int32 speaker_id = 5;  // -1 if diarization not available
+}
+
+// ============================================================================
+// TTS (Text-to-Speech) Messages
+// ============================================================================
+
+// TTSRequest for speech synthesis.
+message TTSRequest {
+  // Text to synthesize. Max 5000 characters per request.
+  string text = 1;
+
+  // Voice identifier. Available voices from ListModels:
+  // Piper: "es_ES-pacifico", "es_ES-dave", "en_US-lessac", "en_US-amy"
+  // Kokoro: "kokoro-es", "kokoro-en", "kokoro-ja"
+  // Default: "es_ES-pacifico" (Spanish neutral).
+  string voice = 2;
+
+  // Speech rate multiplier: 0.5 (slow) to 2.0 (fast).
+  // Default: 1.0.
+  float speed = 3;
+
+  // Output audio format: "wav", "mp3", "opus", "pcm", "flac".
+  // Default: "wav" (uncompressed, lowest latency).
+  string format = 4;
+
+  // Sample rate in Hz: 16000, 22050, 44100, 48000.
+  // Default: 22050 (Piper native).
+  int32 sample_rate = 5;
+
+  // Optional: SSML markup for prosody control.
+  // If provided, 'text' is ignored.
+  string ssml = 6;
+}
+
+// SynthesizeResponse for one-shot synthesis.
+message SynthesizeResponse {
+  // Complete audio data in requested format.
+  bytes audio_data = 1;
+
+  // Actual format used (matches request.format).
+  string format = 2;
+
+  // Actual sample rate used.
+  int32 sample_rate = 3;
+
+  // Duration of generated audio in milliseconds.
+  int64 duration_ms = 4;
+
+  // Number of characters synthesized.
+  int32 characters = 5;
+}
+
+// ============================================================================
+// Health & Model Discovery
+// ============================================================================
+
+message HealthRequest {}
+
+message HealthResponse {
+  // True if service is ready to accept requests.
+  bool healthy = 1;
+
+  // Service version (semver).
+  string version = 2;
+
+  // Currently loaded STT model ID.
+  string stt_model = 3;
+
+  // Currently loaded/default TTS voice ID.
+  string tts_voice = 4;
+
+  // Uptime in milliseconds.
+  int64 uptime_ms = 5;
+
+  // GPU/Metal acceleration status.
+  bool gpu_acceleration = 6;
+
+  // Memory usage in bytes (RSS).
+  int64 memory_bytes = 7;
+}
+
+message ListModelsRequest {}
+
+message ListModelsResponse {
+  // Available STT models.
+  repeated ModelInfo stt_models = 1;
+
+  // Available TTS voices.
+  repeated ModelInfo tts_voices = 2;
+}
+
+message ModelInfo {
+  // Unique identifier (use in TranscribeRequest.model or TTSRequest.voice).
+  string id = 1;
+
+  // Human-readable name.
+  string name = 2;
+
+  // Primary language (ISO 639-1).
+  string language = 3;
+
+  // True if model is loaded in memory (hot).
+  bool loaded = 4;
+
+  // Model size in MB (approx).
+  int32 size_mb = 5;
+
+  // Supported sample rates (TTS only).
+  repeated int32 sample_rates = 6;
+
+  // Description / capabilities.
+  string description = 7;
+}

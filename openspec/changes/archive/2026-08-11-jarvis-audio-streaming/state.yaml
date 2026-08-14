@@ -1,0 +1,43 @@
+id: jarvis-audio-streaming
+status: active
+phase: archive
+verification_verdict: pass_with_warnings
+created_at: "2026-08-11"
+updated_at: "2026-08-11"
+phases:
+  explore: completed
+  propose: completed
+  spec: completed
+  design: completed
+  tasks: completed
+  apply: completed
+  verify: completed
+  archive: completed
+dependencies: []
+warnings:
+  - "ENV: whisper-cli binary not present in container; STT latency tests skipped"
+  - "ENV: Piper/Kokoro binaries/models not present in container; TTS TTFB tests skipped"
+fixes_applied:
+  - "docker/Dockerfile.voice: fixed package layout — code copied to /app/jarvis_os/voice_bridge preserving Python package root"
+  - "docker/Dockerfile.voice: changed CMD to python -m jarvis_os.voice_bridge.server so module resolution works from WORKDIR /app"
+  - "docker/Dockerfile.voice: simplified PYTHONPATH to /app"
+  - "docker/Dockerfile.voice: added grpcio==1.83.0 matching generated proto code version requirement"
+  - "scripts/test_audio_streaming.sh: fixed syntax errors — missing function declarations for test_websocket_handshake and test_30min_stability"
+  - "scripts/test_audio_streaming.sh: added test_websocket_handshake call in main()"
+  - "scripts/test_audio_streaming.sh: fixed arithmetic under set -e — replaced ((TESTS_*++)) with TESTS_*=$((TESTS_* + 1))"
+  - "scripts/test_audio_streaming.sh: added missing log_warn function definition"
+  - "jarvis_ui/lib/services/audio_stream_service.dart: fixed type errors — replaced addUtf8Text(String) with add(utf8.encode(String))"
+  - "docker/entrypoint.voice.sh: fixed arithmetic under set -e — replaced ((attempt++)) with attempt=$((attempt + 1))"
+  - "jarvis_os/voice_bridge/client.py: fixed import — replaced TranscribeResponse with STTResponse to match models.py"
+  - "jarvis_os/voice_bridge/__init__.py: fixed export — replaced TranscribeResponse with STTResponse"
+  - "jarvis_os/voice_bridge/models.py: added type discriminator field to SessionAck for WebSocket framing"
+verification_notes: "All 21 tasks complete. Build passes. Container healthy. E2E tests: 6 passed, 0 failed, 3 skipped (STT/TTS engines missing in env). Static inspection confirms 5/5 requirements implemented. Verdict: PASS WITH WARNINGS."
+verification:
+  build_command: docker-compose -f docker/docker-compose.yml -p docker build voice-pipeline
+  build_exit_code: 0
+  build_output_hash: sha256:152394d73f4e40763d5b7bd674512bb1ace47044dc5ccc7734fe4985aa9de079
+  test_command: bash scripts/test_audio_streaming.sh --quick
+  test_exit_code: 0
+  test_output_hash: sha256:5eb9eade8e773fce80f77a3fa79a9e1e8b9135a2afacfe99fffbfb6e61a2b8d8
+  verdict: pass_with_warnings
+  evidence_revision: "2026-08-11T15:08:00-05:00"

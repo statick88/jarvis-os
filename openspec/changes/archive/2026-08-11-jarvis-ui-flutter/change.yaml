@@ -1,0 +1,13 @@
+id: jarvis-ui-flutter
+title: "Cliente Nativo Flutter para Jarvis-OS"
+status: active
+created_at: "2026-08-09"
+description: "Implementación del cliente móvil/desktop Flutter (macOS y Android) para interactuar con gentle-orchestrator, voice-pipeline y Floci. Incluye chat textual, captura de voz nativa, síntesis TTS y visualización de estado."
+quality_gates:
+  max_critical_errors: 0
+  max_high_errors: 2
+  min_coverage_percentage: 80
+affected_modules:
+  - jarvis_ui/
+  - jarvis_os/
+  - docker/

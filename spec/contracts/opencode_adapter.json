@@ -1,0 +1,365 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://jarvis-os.dev/schemas/opencode-adapter-v1.json",
+  "title": "OpenCode Adapter Protocol",
+  "version": "1.0.0",
+  "description": "Protocolo de mensajería entre gentle-orchestrator (Docker) y OpenCode/Kilo Code (Host macOS). Comunicación vía WebSocket (primario) o HTTP REST (fallback) sobre host.docker.internal.",
+  "type": "object",
+  "definitions": {
+    "Envelope": {
+      "type": "object",
+      "required": ["id", "timestamp", "type", "payload"],
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid",
+          "description": "ID único del mensaje (correlation ID). UUIDv4."
+        },
+        "timestamp": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Timestamp ISO 8601 UTC del mensaje."
+        },
+        "type": {
+          "type": "string",
+          "enum": ["REQUEST", "RESPONSE", "EVENT", "ERROR", "HEARTBEAT", "ACK"],
+          "description": "Tipo de mensaje en el protocolo."
+        },
+        "payload": {
+          "type": "object",
+          "description": "Carga útil específica según type."
+        }
+      },
+      "additionalProperties": false
+    },
+    "SkillExecutionRequest": {
+      "type": "object",
+      "required": ["skill", "input", "context"],
+      "properties": {
+        "skill": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_]*$",
+          "description": "Nombre de la skill sin extensión .md (ej: plan, bandeja, metricas, tendencias, boveda)"
+        },
+        "input": {
+          "type": "object",
+          "description": "Parámetros de entrada específicos de la skill. Validado contra input_schema de la skill."
+        },
+        "context": {
+          "type": "object",
+          "required": ["vault_path", "skills_path", "session_id"],
+          "properties": {
+            "vault_path": {
+              "type": "string",
+              "default": "/app/vault",
+              "description": "Ruta absoluta al vault montado en el contenedor/host"
+            },
+            "skills_path": {
+              "type": "string",
+              "default": "/app/.skills",
+              "description": "Ruta absoluta al directorio de skills"
+            },
+            "session_id": {
+              "type": "string",
+              "format": "uuid",
+              "description": "ID de sesión de conversación para trazabilidad"
+            },
+            "user_id": {
+              "type": "string",
+              "description": "Identificador de usuario (opcional, para multi-usuario futuro)"
+            },
+            "trace_id": {
+              "type": "string",
+              "format": "uuid",
+              "description": "Trace ID para distributed tracing (OpenTelemetry)"
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    "SkillExecutionResponse": {
+      "type": "object",
+      "required": ["success", "output", "vault_changes", "duration_ms"],
+      "properties": {
+        "success": {
+          "type": "boolean",
+          "description": "True si la skill se ejecutó correctamente"
+        },
+        "output": {
+          "type": "object",
+          "description": "Resultado estructurado de la skill (validado contra output_schema)"
+        },
+        "vault_changes": {
+          "type": "array",
+          "description": "Cambios a aplicar en el vault (CREATE, UPDATE, DELETE, APPEND)",
+          "items": {
+            "type": "object",
+            "required": ["path", "operation"],
+            "properties": {
+              "path": {
+                "type": "string",
+                "description": "Ruta relativa en vault (ej: wiki/plan_hoy.md, raw/inbox_2026-08-08.md)"
+              },
+              "operation": {
+                "type": "string",
+                "enum": ["CREATE", "UPDATE", "DELETE", "APPEND"],
+                "description": "Operación a realizar sobre el archivo"
+              },
+              "content": {
+                "type": "string",
+                "description": "Contenido completo para CREATE/UPDATE, o texto a añadir para APPEND. No requerido para DELETE."
+              },
+              "frontmatter": {
+                "type": "object",
+                "description": "YAML frontmatter para notas Zettelkasten (id, tags, links, created, modified)"
+              },
+              "backup": {
+                "type": "boolean",
+                "default": true,
+                "description": "Si true, crear backup previo en vault/.backups/"
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "sqs_events": {
+          "type": "array",
+          "description": "Eventos para encolar en SQS (Floci/LocalStack)",
+          "items": {
+            "type": "object",
+            "required": ["queue", "message"],
+            "properties": {
+              "queue": {
+                "type": "string",
+                "enum": ["jarvis-async-tasks"],
+                "description": "Nombre de la cola SQS destino"
+              },
+              "message": {
+                "type": "object",
+                "description": "Cuerpo del mensaje SQS (JSON serializable)"
+              },
+              "delay_seconds": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 900,
+                "default": 0,
+                "description": "Retraso en segundos antes de que el mensaje sea visible (0-15 min)"
+              },
+              "message_group_id": {
+                "type": "string",
+                "description": "Para FIFO queues: message group ID (opcional)"
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "error": {
+          "type": "string",
+          "description": "Mensaje de error legible si success=false"
+        },
+        "error_code": {
+          "type": "string",
+          "enum": ["VAULT_NOT_FOUND", "INVALID_ACTION", "TASK_NOT_FOUND", "PERMISSION_DENIED", "SKILL_NOT_FOUND", "VALIDATION_ERROR", "TIMEOUT", "INTERNAL_ERROR"],
+          "description": "Código de error estandarizado para manejo programático"
+        },
+        "duration_ms": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Tiempo total de ejecución de la skill en milisegundos"
+        }
+      },
+      "additionalProperties": false
+    },
+    "HealthCheckRequest": {
+      "type": "object",
+      "properties": {
+        "service": {
+          "type": "string",
+          "enum": ["opencode", "kilo", "all"],
+          "default": "all",
+          "description": "Qué servicio verificar"
+        }
+      },
+      "additionalProperties": false
+    },
+    "HealthCheckResponse": {
+      "type": "object",
+      "required": ["service", "status", "version", "active_sessions"],
+      "properties": {
+        "service": {
+          "type": "string",
+          "enum": ["opencode", "kilo"]
+        },
+        "status": {
+          "type": "string",
+          "enum": ["healthy", "degraded", "down", "starting"],
+          "description": "Estado de salud del servicio"
+        },
+        "version": {
+          "type": "string",
+          "description": "Versión del daemon (ej: OpenCode 0.1.0)"
+        },
+        "active_sessions": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Número de sesiones activas actualmente"
+        },
+        "uptime_ms": {
+          "type": "integer",
+          "description": "Uptime del daemon en milisegundos"
+        },
+        "last_error": {
+          "type": "string",
+          "description": "Último error registrado (si status != healthy)"
+        }
+      },
+      "additionalProperties": false
+    },
+    "SkillListRequest": {
+      "type": "object",
+      "properties": {
+        "include_schema": {
+          "type": "boolean",
+          "default": false,
+          "description": "Si true, incluir input_schema y output_schema de cada skill"
+        }
+      },
+      "additionalProperties": false
+    },
+    "SkillListResponse": {
+      "type": "object",
+      "required": ["skills"],
+      "properties": {
+        "skills": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["id", "name", "version", "description", "capabilities"],
+            "properties": {
+              "id": { "type": "string" },
+              "name": { "type": "string" },
+              "version": { "type": "string" },
+              "description": { "type": "string" },
+              "capabilities": { "type": "array", "items": { "type": "string" } },
+              "input_schema": { "type": "object" },
+              "output_schema": { "type": "object" }
+            }
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "EventNotification": {
+      "type": "object",
+      "required": ["event_type", "timestamp", "data"],
+      "properties": {
+        "event_type": {
+          "type": "string",
+          "enum": ["vault_changed", "skill_completed", "skill_failed", "queue_message", "health_changed"],
+          "description": "Tipo de evento notificado"
+        },
+        "timestamp": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "data": {
+          "type": "object",
+          "description": "Datos específicos del evento"
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "oneOf": [
+    { "$ref": "#/definitions/Envelope" },
+    { "$ref": "#/definitions/SkillExecutionRequest" },
+    { "$ref": "#/definitions/SkillExecutionResponse" },
+    { "$ref": "#/definitions/HealthCheckRequest" },
+    { "$ref": "#/definitions/HealthCheckResponse" },
+    { "$ref": "#/definitions/SkillListRequest" },
+    { "$ref": "#/definitions/SkillListResponse" },
+    { "$ref": "#/definitions/EventNotification" }
+  ],
+  "examples": [
+    {
+      "description": "REQUEST: Ejecutar skill 'plan' para agregar tarea",
+      "value": {
+        "id": "550e8400-e29b-41d4-a716-446655440000",
+        "timestamp": "2026-08-08T15:30:00.000Z",
+        "type": "REQUEST",
+        "payload": {
+          "skill": "plan",
+          "input": {
+            "action": "add_task",
+            "task": "Revisar PR #42",
+            "priority": "high"
+          },
+          "context": {
+            "vault_path": "/app/vault",
+            "skills_path": "/app/.skills",
+            "session_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+            "trace_id": "trace-abc123"
+          }
+        }
+      }
+    },
+    {
+      "description": "RESPONSE: Skill 'plan' ejecutada con éxito",
+      "value": {
+        "id": "550e8400-e29b-41d4-a716-446655440001",
+        "timestamp": "2026-08-08T15:30:00.150Z",
+        "type": "RESPONSE",
+        "payload": {
+          "success": true,
+          "output": {
+            "task_id": "tsk-001",
+            "message": "Tarea agregada a plan_hoy.md",
+            "task": {
+              "id": "tsk-001",
+              "text": "Revisar PR #42",
+              "priority": "high",
+              "completed": false,
+              "created_at": "2026-08-08T15:30:00.000Z"
+            }
+          },
+          "vault_changes": [
+            {
+              "path": "wiki/plan_hoy.md",
+              "operation": "UPDATE",
+              "content": "---\nid: plan_hoy\ntags: [plan, daily]\ncreated: \"2026-08-08T08:00:00Z\"\nmodified: \"2026-08-08T15:30:00Z\"\n---\n# Plan de Hoy — 2026-08-08\n\n## Foco Principal\n- Revisar PR #42 🔴\n\n## Tareas\n- [ ] Revisar PR #42 🔴\n- [ ] Actualizar documentación 🟡\n- [x] Standup matutino 🟢\n\n## Bloqueos\n- Esperando review de @team-lead",
+              "frontmatter": {
+                "id": "plan_hoy",
+                "tags": ["plan", "daily"],
+                "created": "2026-08-08T08:00:00Z",
+                "modified": "2026-08-08T15:30:00Z"
+              },
+              "backup": true
+            }
+          ],
+          "sqs_events": [],
+          "duration_ms": 150
+        }
+      }
+    },
+    {
+      "description": "EVENT: Notificación de cambio en vault",
+      "value": {
+        "id": "550e8400-e29b-41d4-a716-446655440002",
+        "timestamp": "2026-08-08T15:30:00.200Z",
+        "type": "EVENT",
+        "payload": {
+          "event_type": "vault_changed",
+          "timestamp": "2026-08-08T15:30:00.200Z",
+          "data": {
+            "path": "wiki/plan_hoy.md",
+            "operation": "UPDATE",
+            "skill": "plan",
+            "session_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+          }
+        }
+      }
+    }
+  ]
+}

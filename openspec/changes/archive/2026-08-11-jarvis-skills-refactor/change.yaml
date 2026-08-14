@@ -1,0 +1,14 @@
+id: jarvis-skills-refactor
+title: "Refactor y Cierre de Skills: unificación, psutil, summarize y clientes reales"
+status: active
+created_at: "2026-08-11"
+description: "Cierre de FASE 8 con remedios: unificar skills plugin con el sistema existente, agregar psutil, implementar summarize_note y reemplazar placeholders por clientes reales LocalStack/Docker."
+quality_gates:
+  max_critical_errors: 0
+  max_high_errors: 1
+  min_coverage_percentage: 90
+affected_modules:
+  - jarvis_os/skills/
+  - jarvis_os/api/routes/
+  - docker/
+  - scripts/
