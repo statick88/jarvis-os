@@ -42,12 +42,12 @@ Chain strategy: size-exception
 
 ## Phase 3: E2E Test and Verification
 
-- [ ] 3.1 Create `tests/e2e_voice_to_hud_test.py`: Full closed-loop test with mocked voice-pipeline WS, orchestrator, and vault
-- [ ] 3.2 Add `test_skill_execution_tracing` to E2E suite: Verify vault/outputs/ file created with correct frontmatter
-- [ ] 3.3 Add `test_hud_event_broadcast` to E2E suite: Verify HUD receives SKILL_EXECUTION_COMPLETE event
-- [ ] 3.4 Add `test_latency_under_500ms` to E2E suite: Mock timing, assert total pipeline < 500ms
-- [ ] 3.5 Add `test_fallback_text_only` to E2E suite: Voice-pipeline unavailable, text-only pipeline works
-- [ ] 3.6 Add `test_vault_write_failure_resilience` to E2E suite: Readonly vault, pipeline continues, warning in response
-- [ ] 3.7 Update `.progress`: Add FASE 11 section, mark RC1 entry
-- [ ] 3.8 Update `.agents`: Add E2E loop description, HUD event protocol, vault output conventions
-- [ ] 3.9 Run `bash scripts/test_jarvis_pipeline.sh && bash scripts/test_audio_streaming.sh --quick && python tests/e2e_voice_to_hud_test.py`; validate 0 FAIL, 0 SKIP
+- [x] 3.1 Create `tests/e2e_voice_to_hud_test.py`: Full closed-loop test with mocked voice-pipeline WS, orchestrator, and vault
+- [x] 3.2 Add `test_skill_execution_tracing` to E2E suite: Verify vault/outputs/ file created with correct frontmatter
+- [x] 3.3 Add `test_hud_event_broadcast` to E2E suite: Verify HUD receives SKILL_EXECUTION_COMPLETE event
+- [x] 3.4 Add `test_latency_under_500ms` to E2E suite: Mock timing, assert total pipeline < 500ms
+- [x] 3.5 Add `test_fallback_text_only` to E2E suite: Voice-pipeline unavailable, text-only pipeline works
+- [x] 3.6 Add `test_vault_write_failure_resilience` to E2E suite: Readonly vault, pipeline continues, warning in response
+- [x] 3.7 Update `.progress`: Add FASE 11 section, mark RC1 entry
+- [x] 3.8 Update `.agents`: Add E2E loop description, HUD event protocol, vault output conventions
+- [x] 3.9 Run `bash scripts/test_jarvis_pipeline.sh && bash scripts/test_audio_streaming.sh --quick && python tests/e2e_voice_to_hud_test.py`; validate 0 FAIL, 0 SKIP
