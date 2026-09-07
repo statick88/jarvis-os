@@ -1,7 +1,7 @@
 id: jarvis-e2e-closed-loop
 title: "E2E Closed-Loop Integration (FASE 11)"
 status: active
-phase: research
+phase: spec
 created_at: "2026-09-07"
 updated_at: "2026-09-07"
 description: >
@@ -14,7 +14,8 @@ retry_count: 0
 phases:
   explore: completed
   propose: completed
-  spec: pending
+  research: completed
+  spec: completed
   design: pending
   tasks: pending
   apply: pending
