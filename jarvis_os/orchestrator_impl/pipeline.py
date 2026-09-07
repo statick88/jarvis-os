@@ -30,6 +30,11 @@ from typing import Any
 
 from fastapi.responses import JSONResponse
 
+from jarvis_os.orchestrator_impl.events import (
+    ExecutionStatus,
+    SkillExecutionComplete,
+    SkillExecutionStart,
+)
 from jarvis_os.orchestrator_impl.errors import (
     IntentAnalysisError,
     SkillExecutionPipelineError,
@@ -72,8 +77,22 @@ class OrchestratorPipeline:
         self._voice_client = voice_client
         self._opencode_client = opencode_client
         self._intent_analyzer = IntentAnalyzer()
+        self._event_listeners: list[Any] = []
 
     # --- Public API ----------------------------------------------------------
+
+    def add_event_listener(self, listener: Any) -> None:
+        """Register a callable that receives every pipeline event."""
+        self._event_listeners.append(listener)
+
+    async def _emit(self, event: Any) -> None:
+        for listener in self._event_listeners:
+            try:
+                result = listener(event)
+                if asyncio.iscoroutine(result):
+                    await result
+            except Exception as exc:  # noqa: BLE001
+                logger.warning("Event listener failed: %s", exc)
 
     async def execute(self, payload: dict[str, Any]) -> JSONResponse:
         """Run the full pipeline and return a JSON response.
@@ -217,12 +236,28 @@ class OrchestratorPipeline:
         # Single skill execution
         # skill is non-None here: _resolve_skill raises SkillResolutionError otherwise
         assert skill is not None
+        start_event = SkillExecutionStart(
+            skill_id=skill.id,
+            session_id=str(payload.get("session_id", "")),
+            input_preview=payload.get("text", "")[:120],
+        )
+        await self._emit(start_event)
+        t0 = _utcnow()
         execution_type = skill.frontmatter.execution_type
         result = await self._executor.execute(
             skill=skill,
             input_data=input_data,
             execution_type=execution_type,
         )
+        duration_ms = (_utcnow() - t0).total_seconds() * 1000
+        complete_event = SkillExecutionComplete(
+            skill_id=skill.id,
+            session_id=str(payload.get("session_id", "")),
+            status=ExecutionStatus.COMPLETED if result.ok else ExecutionStatus.FAILED,
+            duration_ms=duration_ms,
+            error=None if result.ok else result.error,
+        )
+        await self._emit(complete_event)
 
         if result.ok:
             return {"success": True, "result": result.output}
@@ -295,8 +330,6 @@ class OrchestratorPipeline:
             current_input = {**current_input, **(result.output or {})}
 
         return {"success": True, "result": merged_output}
-
-    # --- Phase 4: Response Formatting ----------------------------------------
 
     def _format_response(self, exec_result: dict[str, Any]) -> dict[str, Any]:
         """Wrap the execution result in the standard response envelope.

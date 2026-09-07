@@ -128,6 +128,8 @@ class VaultIndexer:
             if rel_path not in files_on_disk:
                 index.files[entry.id].deleted = True
 
+        self._create_output_backlinks(index)
+
         index.updated_at = _now_utc()
         await self._write_index(index)
         await self._write_master_index(index)
@@ -139,6 +141,53 @@ class VaultIndexer:
                 "errors": errors,
                 "total_active": sum(1 for e in index.files.values() if not e.deleted),
             }
+        )
+
+    async def search_by_tags(
+        self,
+        tags: list[str],
+        *,
+        include_deleted: bool = False,
+    ) -> VaultOperationResult:
+        """Return active index entries that contain at least one of the given tags.
+
+        This is a lightweight index-only query (no file I/O) suitable for
+        nightly scans that need to discover tagged notes without running a
+        full text search.
+
+        Args:
+            tags: Tags to match (e.g. ``["#idea", "#todo", "#research"]``).
+            include_deleted: When True, include entries marked as deleted.
+
+        Returns:
+            A :class:`VaultOperationResult` with ``matched_entries`` in
+            ``data``.
+        """
+        try:
+            index = await self._load_index()
+        except Exception as exc:
+            logger.warning("Could not load index for tag search: %s", exc)
+            return VaultOperationResult.ok({"matched_entries": [], "error": str(exc)})
+
+        tag_set = {t.lstrip("#").lower() for t in tags}
+        matched: list[dict[str, Any]] = []
+        for entry in index.files.values():
+            if not include_deleted and entry.deleted:
+                continue
+            entry_tags_lower = {t.lower() for t in entry.tags}
+            if tag_set & entry_tags_lower:
+                matched.append(
+                    {
+                        "id": entry.id,
+                        "title": entry.title,
+                        "rel_path": entry.rel_path,
+                        "tags": entry.tags,
+                        "links": entry.links,
+                    }
+                )
+
+        return VaultOperationResult.ok(
+            {"matched_entries": matched, "total_matched": len(matched)}
         )
 
     async def rebuild(self) -> VaultOperationResult:
@@ -206,7 +255,7 @@ class VaultIndexer:
             if not base.exists():
                 continue
             for path in base.rglob("*"):
-                if path.is_file() and path.suffix.lower() in {".md", ".json", ".txt"}:
+                if path.is_file() and path.suffix.lower() in {".md", ".json", ".txt"} and not path.name.startswith("."):
                     files.add(str(path.relative_to(self.vault_root)))
         return files
 
@@ -236,6 +285,28 @@ class VaultIndexer:
         tmp = path.with_suffix(".tmp")
         tmp.write_text(data, encoding="utf-8")
         tmp.replace(path)
+
+    def _create_output_backlinks(self, index: VaultIndex) -> None:
+        """Link ``outputs/<file>`` → related ``wiki/<note>`` bidirectionally.
+
+        For each output file entry, inspects its extracted ``links`` (which
+        contain wikilink targets from the body).  For every link that matches
+        a wiki note by ``id`` or filename stem, appends the output file
+        ``rel_path`` to the wiki note's ``links`` list, creating a backlink.
+        """
+        for entry in index.files.values():
+            if entry.deleted or not entry.rel_path.startswith("outputs/"):
+                continue
+            for link_target in entry.links:
+                for wiki_entry in index.files.values():
+                    if wiki_entry.deleted or not wiki_entry.rel_path.startswith("wiki/"):
+                        continue
+                    wiki_id = Path(wiki_entry.rel_path).stem
+                    if wiki_entry.id == link_target or wiki_id == link_target:
+                        backlink = entry.rel_path
+                        if backlink not in wiki_entry.links:
+                            wiki_entry.links.append(backlink)
+                        break
 
 
 def _now_utc() -> datetime:

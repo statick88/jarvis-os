@@ -25,6 +25,8 @@ NC='\033[0m'
 VERBOSE=false
 CLEANUP=false
 SKIP_BUILD=false
+CHECK_ONLY=false
+SKIP_CLEANUP=false
 
 # Contadores
 TESTS_PASSED=0
@@ -36,10 +38,10 @@ TESTS_SKIPPED=0
 # ============================================================================
 
 log_info() { echo -e "${BLUE}[INFO]${NC} $*"; }
-log_success() { echo -e "${GREEN}[PASS]${NC} $*"; ((TESTS_PASSED++)); }
-log_fail() { echo -e "${RED}[FAIL]${NC} $*"; ((TESTS_FAILED++)); }
+log_success() { echo -e "${GREEN}[PASS]${NC} $*"; TESTS_PASSED=$((TESTS_PASSED + 1)); }
+log_fail() { echo -e "${RED}[FAIL]${NC} $*"; TESTS_FAILED=$((TESTS_FAILED + 1)); }
 log_warn() { echo -e "${YELLOW}[WARN]${NC} $*"; }
-log_skip() { echo -e "${CYAN}[SKIP]${NC} $*"; ((TESTS_SKIPPED++)); }
+log_skip() { echo -e "${CYAN}[SKIP]${NC} $*"; TESTS_SKIPPED=$((TESTS_SKIPPED + 1)); }
 log_step() { echo -e "\n${CYAN}═══ $* ═══${NC}\n"; }
 
 # ============================================================================
@@ -67,7 +69,8 @@ wait_for_health() {
 
     while [ $waited -lt $max_wait ]; do
         local container_id
-        container_id=$(run_compose ps -q "$service" 2>/dev/null | head -n1 || echo "")
+        # Usar filter por label de compose (robusto incluso con container_name override)
+        container_id=$(docker ps --filter "label=com.docker.compose.project=${COMPOSE_PROJECT_NAME}" --filter "label=com.docker.compose.service=${service}" --filter "status=running" -q 2>/dev/null | head -n1 || echo "")
         if [ -n "$container_id" ]; then
             local status
             status=$(docker inspect --format '{{.State.Health.Status}}' "$container_id" 2>/dev/null || echo "unknown")
@@ -76,7 +79,7 @@ wait_for_health() {
                 return 0
             elif [ "$status" = "unhealthy" ]; then
                 log_fail "$service está unhealthy"
-                run_compose logs "$service" --tail 50
+                docker logs "$container_id" --tail 50 2>&1 || true
                 return 1
             fi
         fi
@@ -89,14 +92,15 @@ wait_for_health() {
     done
 
     log_fail "$service no alcanzó estado healthy en ${max_wait}s"
-    run_compose logs "$service" --tail 50
+    docker logs "$(docker ps --filter "label=com.docker.compose.project=${COMPOSE_PROJECT_NAME}" --filter "label=com.docker.compose.service=${service}" -q 2>/dev/null | head -n1)" --tail 50 2>&1 || true
     return 1
 }
 
 check_service_running() {
     local service=$1
     local container_id
-    container_id=$(run_compose ps -q "$service" 2>/dev/null | head -n1 || echo "")
+    # Usar filter por label de compose (robusto incluso con container_name override)
+    container_id=$(docker ps --filter "label=com.docker.compose.project=${COMPOSE_PROJECT_NAME}" --filter "label=com.docker.compose.service=${service}" --filter "status=running" -q 2>/dev/null | head -n1 || echo "")
     if [ -n "$container_id" ]; then
         local status
         status=$(docker inspect --format '{{.State.Status}}' "$container_id" 2>/dev/null || echo "unknown")
@@ -212,7 +216,8 @@ test_stt_tts_binaries() {
     log_step "TEST 3A: STT/TTS Binaries Availability (Fail-Hard)"
 
     local container_id
-    container_id=$(run_compose ps -q "voice-pipeline" 2>/dev/null | head -n1 || echo "")
+    # Usar filter por label de compose (robusto incluso con container_name override)
+    container_id=$(docker ps --filter "label=com.docker.compose.project=${COMPOSE_PROJECT_NAME}" --filter "label=com.docker.compose.service=voice-pipeline" --filter "status=running" -q 2>/dev/null | head -n1 || echo "")
 
     if [ -z "$container_id" ]; then
         log_fail "voice-pipeline container not found — cannot verify binaries"
@@ -685,11 +690,15 @@ parse_args() {
             --verbose) VERBOSE=true; shift ;;
             --cleanup) CLEANUP=true; shift ;;
             --skip-build) SKIP_BUILD=true; shift ;;
+            --check-only) CHECK_ONLY=true; shift ;;
+            --no-cleanup) SKIP_CLEANUP=true; shift ;;
             -h|--help)
-                echo "Uso: $0 [--verbose] [--cleanup] [--skip-build]"
-                echo "  --verbose    : Output detallado"
-                echo "  --cleanup    : Limpiar contenedores al final"
-                echo "  --skip-build : Saltar build (usar imágenes existentes)"
+                echo "Uso: $0 [--verbose] [--cleanup] [--skip-build] [--check-only] [--no-cleanup]"
+                echo "  --verbose     : Output detallado"
+                echo "  --cleanup     : Limpiar contenedores al final"
+                echo "  --skip-build  : Saltar build (usar imágenes existentes)"
+                echo "  --check-only  : Solo tests mock (sin Docker/Colima)"
+                echo "  --no-cleanup  : No ejecutar cleanup al final"
                 exit 0
                 ;;
             *) log_warn "Opción desconocida: $1"; shift ;;
@@ -698,6 +707,10 @@ parse_args() {
 }
 
 cleanup_all() {
+    if [ "$SKIP_CLEANUP" = true ]; then
+        log_info "Skip cleanup (--no-cleanup activo)"
+        return 0
+    fi
     if [ "$CLEANUP" = true ]; then
         log_info "Limpiando recursos de test..."
         run_compose down -v --remove-orphans 2>/dev/null || true
@@ -739,11 +752,16 @@ main() {
     echo "Proyecto Docker: $COMPOSE_PROJECT_NAME"
     echo "Verbose: $VERBOSE"
     echo "Cleanup: $CLEANUP"
+    echo "Check-only: $CHECK_ONLY"
+    echo "No-cleanup: $SKIP_CLEANUP"
     echo ""
 
     # Verificar prerrequisitos (fail-hard)
     command -v docker >/dev/null || { log_fail "Docker no instalado"; exit 1; }
-    command -v docker compose >/dev/null || { log_fail "Docker Compose no disponible"; exit 1; }
+    if ! docker compose version >/dev/null 2>&1 && ! command -v docker-compose >/dev/null 2>&1; then
+        log_fail "Docker Compose no disponible (ni 'docker compose' ni 'docker-compose')"
+        exit 1
+    fi
     command -v jq >/dev/null || { log_fail "jq no instalado (requerido para parsing JSON)"; exit 1; }
     command -v curl >/dev/null || { log_fail "curl no instalado"; exit 1; }
     command -v uuidgen >/dev/null || { log_fail "uuidgen no instalado"; exit 1; }
@@ -751,19 +769,28 @@ main() {
     # Trap para cleanup en caso de error
     trap cleanup_all EXIT
 
-    # Ejecutar tests en orden (fail-hard: no enmascarar errores)
-    test_docker_compose_up
-    test_floci_resources
-    test_stt_tts_binaries
-    test_voice_pipeline_api
-    test_skills_api
-    test_skills_api_path_traversal
-    test_skills_api_operation_routing
-    test_opencode_adapter_mock
-    test_plan_skill_integration
-    test_tendencias_sqs_integration
-    test_vault_structure
-    test_graceful_shutdown
+    if [ "$CHECK_ONLY" = true ]; then
+        log_info "Modo --check-only: ejecutando solo tests mock (sin Docker/Colima)"
+        echo ""
+
+        # Solo tests mock (no requieren Docker)
+        test_opencode_adapter_mock
+        test_plan_skill_integration
+    else
+        # Tests completos (Docker + mock) en orden (fail-hard: no enmascarar errores)
+        test_docker_compose_up
+        test_floci_resources
+        test_stt_tts_binaries
+        test_voice_pipeline_api
+        test_skills_api
+        test_skills_api_path_traversal
+        test_skills_api_operation_routing
+        test_opencode_adapter_mock
+        test_plan_skill_integration
+        test_tendencias_sqs_integration
+        test_vault_structure
+        test_graceful_shutdown
+    fi
 
     # Summary
     print_summary

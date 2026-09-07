@@ -41,3 +41,15 @@ data/
 # Models
 models/
 voice_models/
+# Local Pi runtime state
+.atl/
+
+# Ephemeral SDD runtime state
+.progress
+.session-notes/
+
+# Generated reports
+_Nightly_Reports/
+
+# Legacy archive (superseded by openspec/changes/archive/)
+openspec/archived/

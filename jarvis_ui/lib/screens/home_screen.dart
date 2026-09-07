@@ -3,7 +3,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
 import 'package:jarvis_ui/providers/jarvis_providers.dart';
+import 'package:jarvis_ui/providers/nightly_provider.dart';
 import 'package:jarvis_ui/providers/hud_event_providers.dart';
+import 'package:jarvis_ui/widgets/nightly_briefing.dart';
 
 class HomeScreen extends ConsumerWidget {
   const HomeScreen({super.key});
@@ -203,6 +205,7 @@ class HomeScreen extends ConsumerWidget {
             ),
           ),
           _buildHudVoiceVitalSigns(ref, context),
+          const MorningBriefing(),
           _buildObsidianLiveMemoryLog(ref, context),
           Expanded(
             child: ListView.builder(

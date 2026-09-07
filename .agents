@@ -1,0 +1,232 @@
+# JARVIS-OS — Reglas del Juego, Arquitectura y Objetivos
+
+## Visión Global
+Sistema operativo personal orquestado por voz y Markdown. Núcleo: `gentle-ai` en Docker. Ejecución de código en host (macOS M5) vía OpenCode/Kilo Code. Persistencia en frío y colas vía Floci/LocalStack (S3 + SQS). Memoria viva en `./vault/` (Zettelkasten).
+
+---
+
+## Arquitectura Objetivo
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                        HOST (macOS M5)                          │
+│  ┌──────────────┐  ┌──────────────┐  ┌──────────────────────┐  │
+│  │  OpenCode    │  │  Kilo Code   │  │  HUD / Voice Capture │  │
+│  │  (Daemon)    │  │  (Daemon)    │  │  (Audio I/O)         │  │
+│  └──────┬───────┘  └──────┬───────┘  └──────────┬───────────┘  │
+└─────────│─────────────────│─────────────────────│──────────────┘
+          │                 │                     │
+          │ host.docker.internal                  │
+          ▼                 ▼                     ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                     DOCKER NETWORK (jarvis-net)                 │
+│  ┌─────────────────┐  ┌─────────────────┐  ┌────────────────┐  │
+│  │gentle-orchestr. │  │ voice-pipeline  │  │ floci-localstack│  │
+│  │  (Node/Python)  │  │  (Whisper.cpp   │  │  (LocalStack)  │  │
+│  │  Loop Eventos   │  │   + Piper/Kokoro)│  │  SQS + S3      │  │
+│  └────────┬────────┘  └────────┬────────┘  └───────┬────────┘  │
+│           │                    │                    │           │
+│           │     gRPC/REST      │                    │           │
+│           ▼                    ▼                    ▼           │
+│  ┌──────────────────────────────────────────────────────────┐  │
+│  │              VOLÚMENES COMPARTIDOS                        │  │
+│  │  ./vault/  ◄───► /app/vault   (raw/, wiki/, outputs/)    │  │
+│  │  ./.skills/ ◄───► /app/.skills                            │  │
+│  │  ./jarvis_os/ ◄───► /app/jarvis_os                        │  │
+│  └──────────────────────────────────────────────────────────┘  │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+### Flujo de Datos (Pipeline de Ejecución)
+1. **Input (Voz):** Usuario habla → HUD captura audio → `voice-pipeline` (STT) → Texto
+2. **Orquestación:** Texto → `gentle-orchestrator` → Análisis de intención
+3. **Enrutamiento:** Orquestador → `opencode_adapter` → Sesión OpenCode en Host
+4. **Ejecución Skill:** OpenCode lee `.skills/SKILL.md` → Procesa lógica → Genera datos
+5. **Memoria (Vault):** Resultado → Estructura Zettelkasten en `./vault/`
+6. **Output (Voz):** HUD detecta cambio → Resumen → `voice-pipeline` (TTS) → Audio reproduce
+
+---
+
+## Reglas de Desarrollo (Spec-First)
+
+1. **NO generar código de aplicación** sin antes tener confirmados:
+   - `.agents` y `.progress` (este archivo y su compañero)
+   - `spec/jarvis-os-spec.md` (Especificación SDD completa)
+   - `spec/contracts/` (Contratos de interfaz: proto/yaml + JSON)
+
+2. **Actualización Continuada (Obligatoria):**
+   - Cada hallazgo, refactor, corrección de *hardness* → actualizar `.progress` INMEDIATAMENTE
+   - Cada fase SDD completada → marcar en `.progress`
+   - Deuda técnica identificada → registrar en `.progress`
+
+3. **Validación Gentle-AI (Hardness):**
+   - Todo código pasa por harness de evaluación de `gentle-ai` antes de marcar completado
+   - Ejecutar pruebas de robustez, auditoría vulnerabilidades, auto-fix
+   - Solo marcar `[x]` en `.progress` tras pasar validación
+
+4. **SDD Estricto:**
+   - Fases: `explore` → `propose` → `spec` → `design` → `tasks` → `apply` → `verify` → `archive`
+   - Cada fase delegada a sub-agente especializado (`sdd-*`)
+   - Gatekeeper valida contrato de resultado antes de avanzar (modo Automatic)
+
+---
+
+## Metas Específicas por Componente
+
+### `gentle-orchestrator` (Docker)
+- Loop de eventos asíncrono (Node.js/Python)
+- Adapter gRPC/REST para `voice-pipeline` y `opencode_adapter`
+- Cliente AWS (SQS/S3) contra Floci/LocalStack
+- Health checks y métricas expuestas
+
+### `voice-pipeline` (Docker)
+- Whisper.cpp (STT) optimizado ARM64 + Metal
+- Piper / Kokoro (TTS) con voces español neutro
+- API unificada: `/stt` (audio→texto) y `/tts` (texto→audio)
+- Modelos en volumen `voice_models` persistente
+- **WebSocket `/v1/audio/stream`** para streaming bidireccional STT/TTS con latencia sub-segundo
+- **Estado**:Healthy, respondiendo en `localhost:8080`
+
+### `floci-localstack` (Docker)
+- SQS: `jarvis-async-tasks` (colas skills de larga duración)
+- S3: `jarvis-vault-backups` (versionado, lifecycle policies)
+- Script idempotente `init-aws-resources.sh` en `/etc/localstack/init/ready.d/`
+
+### `jarvis_os/` (Código Fuente)
+```
+/jarvis_os
+├── voice_bridge/       # Cliente gRPC/REST para voice-pipeline
+├── opencode_adapter/   # Protocolo JSON ↔ OpenCode daemon
+├── floci_client/       # Cliente SQS/S3 tipado
+├── vault/              # Operaciones Zettelkasten sobre ./vault
+├── skills/             # Loader y ejecutor de .skills/*.md
+└── hud/                # Interfaz HUD (TUI/WebSocket)
+```
+
+### `.skills/` (Habilidades Base — 5 Iniciales)
+| Skill | Responsabilidad | Entrada | Salida (Vault) |
+|-------|----------------|---------|----------------|
+| `metricas.md` | Métricas Docker, CPU, RAM, disco | — | `wiki/metricas_<fecha>.md` |
+| `bandeja.md` | Procesamiento inputs matutinos/resúmenes | Texto/voz raw | `raw/inbox_<fecha>.md` |
+| `tendencias.md` | Lectura RSS/fuentes → encolar en SQS | Feeds configurados | `wiki/tendencias_<fecha>.md` + SQS |
+| `plan.md` | Prioridades diarias (CRUD) | Usuario / skills | `wiki/plan_hoy.md` |
+| `boveda.md` | Indexación Zettelkasten, links, tags | `vault/raw/`, `wiki/` | `wiki/index.md`, graph JSON |
+
+### `./vault/` (Memoria Markdown)
+```
+vault/
+├── raw/        # Entradas crudas (inbox, capturas voz, web clips)
+├── wiki/       # Conocimiento estructurado (plan_hoy.md, index.md, métricas, tendencias)
+└── outputs/    # Artefactos generados (reportes, exports, código)
+```
+
+### `jarvis_os/skills/` (Habilidades Operativas — FASE 8/9 Consolidadas)
+| Skill | Responsabilidad | Entrada | Salida (Vault/Sistema) |
+|-------|----------------|---------|----------------|
+| `skill-obsidian` | CRUD notas Obsidian, búsqueda, resúmenes | Tool call JSON | `vault/wiki/*.md` |
+| `skill-os-control` | Monitoreo CPU/RAM/disco, comandos sandbox | Tool call JSON | Métricas en tiempo real |
+| `skill-devsecops` | LocalStack S3/DynamoDB/SQS, Docker mgmt | Tool call JSON | Respuestas estructuradas |
+
+**Arquitectura implementada:**
+- `BaseSkill` ABC con ciclo de vida `load()` → `execute()` → `unload()`
+- `PluginRegistry` con autodescubrimiento vía `importlib`
+- `CommandSandbox` con whitelist y timeouts
+- Endpoints REST: `GET /api/v1/skills`, `POST /api/v1/skills/{skill}/execute`, `GET /api/v1/skills/{skill}/health`
+- **Estado**: Skills consolidadas, archivadas y validadas con PASS WITH WARNINGS
+
+---
+
+### Worker Nocturno (Nightly Labs)
+- **Scheduler**: `IdleScheduler` en `jarvis_os/core/scheduler.py` — loop `asyncio.create_task()` periódico
+- **Umbrales**: CPU < 20%, RAM < 60% durante 5+ min → activa worker nocturno
+- **Skills**: `nightly_labs.py` ejecuta pipeline scan→extract→process→report
+- **Vault**: `VaultIndexer` indexa notas, extrae tags, genera enlaces bidireccionales
+- **LLM**: Ollama primary, llama.cpp fallback, skip si no disponible
+- **Reportes**: Markdown con frontmatter en `_Nightly_Reports/YYYY-MM-DD.md`
+- **Endpoints**: `POST /v1/nightly/scheduler/toggle`, `GET /v1/nightly/scheduler/status`
+- **Flutter**: `MorningBriefing` widget en HomeScreen con status pill y datos del reporte
+- **Protocolo LLM local**: Ollama `localhost:11434` → `/api/generate` con modelo configurable; fallback a skip silencioso si Ollama no está corriendo
+
+---
+
+### `jarvis_ui/` (Cliente Nativo Flutter)
+- [x] Proyecto Flutter inicializado con plataformas `macos` y `android`.
+- [x] Dependencias agregadas: `dio`, `record`, `audioplayers`, `flutter_riverpod`, `flutter_markdown_plus`.
+- [x] Permisos configurados: red y micrófono en macOS (`DebugProfile.entitlements`, `Release.entitlements`, `Info.plist`) e Android (`AndroidManifest.xml`).
+- [x] `JarvisApiService`: envío de comandos de texto al orquestador con token Bearer y host dinámico (`127.0.0.1` / `10.0.2.2` / IP configurable). Incluye retry policy.
+- [x] `AudioVoiceService`: captura de audio nativo, envío a `voice-pipeline:8080` y reproducción TTS.
+- [x] `HomeScreen`: header de estado de microservicios, chat de texto con Markdown y botón de micrófono animado.
+- [x] `AudioStreamService`: WebSocket client, `CircularAudioBuffer` (500ms), exponential backoff reconnection, streams para `onPartialTranscript`, `onFinalTranscript`, `onAudioChunk`, `onStateChange`.
+- **Estado**: FASE 7 completada, FASE 9 integrada, 100% operativo para streaming bidireccional.
+
+---
+
+## Fase 11: Integración Total E2E
+
+### Arquitectura del Bucle Cerrado
+```
+Voz (Gentle-Pi) → STT/TTS WebSocket → gentle-orchestrator → Skill Execution
+    → VaultOutputLogger → vault/outputs/YYYY-MM-DD/ → VaultIndexer (links)
+    → HUD WebSocket broadcast → Flutter HUD (tiempo real)
+```
+
+### Endpoints y Protocolos
+
+| Componente | Endpoint/Protocolo | Función |
+|------------|-------------------|---------|
+| `voice-pipeline` | WS `/v1/audio/stream` | STT/TTS bidireccional |
+| `gentle-orchestrator` | REST `/v1/execute` | Skill execution |
+| `gentle-orchestrator` | REST `/v1/audio/session/*` | Voice session proxy |
+| `gentle-orchestrator` | REST `/v1/vault/rebuild` | Vault reindex |
+| `HUD` | WS `/hud/ws` | Real-time state broadcast |
+| Event types | `SKILL_EXECUTION_START/COMPLETE/FAIL` | Skill lifecycle |
+| Event types | `VAULT_UPDATE` | Vault index/output changes |
+| Event types | `VOICE_SESSION_OPEN/CLOSE` | Voice session lifecycle |
+
+### Vault Output Convention
+
+- Path: `vault/outputs/YYYY-MM-DD/<skill-id>-<HHMMSS>.md`
+- Frontmatter: `id`, `tags`, `skill`, `created`, `input_ref`, `output_ref`
+- Body: resumen input, output estructurado, enlaces `[[wiki/...]]`
+- Links: Karpathy action→note→skill bidireccionales mantenidos por `VaultIndexer`
+
+### Flutter HUD Consumer
+
+- `EventStreamService`: consume HUD WS events
+- Streams: `onSkillExecution`, `onVaultUpdate`, `onVoiceSession`
+- UI: skill status indicator, vault output links, latency metrics
+
+### Criterios de Éxito (FASE 11)
+
+- [ ] Pipeline voz→texto→skill→vault→voz funciona end-to-end con latencia < 500ms
+- [ ] Cada skill execution deja registro en `vault/outputs/YYYY-MM-DD/`
+- [ ] Enlaces `[[...]]` bidireccionales actualizados automáticamente
+- [ ] HUD Flutter refleja estado de skill execution en tiempo real
+- [ ] Suite E2E: `test_jarvis_pipeline.sh` + `test_audio_streaming.sh` + `e2e_voice_to_hud_test.py` pasa sin FAIL ni SKIP
+- [ ] `gentle-ai doctor` reporta 0 CRITICAL
+
+---
+
+## Restricciones Técnicas
+
+- **ARM64 (Apple Silicon M5):** Dockerfiles con `--platform=linux/arm64`, binarios nativos Metal/NEON
+- **Offline-First:** Whisper.cpp y Piper corren 100% local, sin API keys externas
+- **Gentle-AI Integration:** Harness de evaluación ejecuta en `gentle-orchestrator` o host
+- **Zettelkasten Estricto:** Cada nota en `wiki/` tiene `id`, `tags`, `links[[...]]`, `created`, `modified`
+- **Conventional Commits:** `feat:`, `fix:`, `refactor:`, `docs:`, `test:`, `chore:`
+- **Zero Secrets en Código:** Vars de entorno + LocalStack credenciales `test/test`
+- **Docker Compose Dual (v1 + v2):** Scripts auto-detection via `run_compose()`: prueba `docker compose` (v2, sin guión) primero, luego `docker-compose` (v1, con guión). `.agents` ya no restringe a v1-only; ambos flags funcionan contra `docker-compose.yml` v3.8 sin parches.
+- **WebSocket Streaming Activo:** `/v1/audio/stream` operativo en `voice-pipeline:8080`
+
+---
+
+## Criterios de Éxito (Definition of Done)
+
+- [x] Pipeline voz→texto→skill→vault→voz funciona end-to-end (script `test_jarvis_pipeline.sh` pasa)
+- [x] 5 skills base operativas y probadas
+- [x] Docker Compose levanta los 3 servicios sanos (`healthcheck` passing)
+- [ ] Harness `gentle-ai` valida código sin CRITICAL findings
+- [x] `.progress` refleja estado real al 100%
+- [x] Documentación en `spec/` y `spec/contracts/` completa y versionada
+- [x] WebSocket `/v1/audio/stream` operativo con handshake, ping/pong y streaming bidireccional
+- [x] Cliente Flutter `jarvis_ui` integrado con `AudioStreamService` y buffer circular

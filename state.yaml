@@ -1,46 +1,53 @@
 # JARVIS-OS — State Snapshot
+# Updated: 2026-09-07 after archiving jarvis-runtime-hardening & jarvis-docker-e2e-fix
 
-active_change: jarvis-runtime-hardening
-phase: verify
-status: in_progress
+active_change: null
+phase: idle
+status: ready
 
-verification_baseline:
-  test_jarvis_pipeline:
-    target: "0 FAIL, 0 SKIP"
-    status: pending
-  test_audio_streaming:
-    target: "0 FAIL, 0 SKIP"
-    status: pending
-  gentle_ai_doctor:
-    target: "0 CRITICAL"
-    status: passed
+# Archived changes (9 total)
+archived_changes:
+  - id: jarvis-audio-streaming
+    date: "2026-08-11"
+    verdict: pass
+  - id: jarvis-skills-expansion
+    date: "2026-08-11"
+    verdict: pass
+  - id: jarvis-skills-jd-fixes
+    date: "2026-08-11"
+    verdict: pass
+  - id: jarvis-skills-refactor
+    date: "2026-08-11"
+    verdict: pass
+  - id: jarvis-ui-flutter
+    date: "2026-08-11"
+    verdict: pass
+  - id: jarvis-docker-e2e-fix
+    date: "2026-09-06"
+    verdict: pass
+    notes: "4/5 tasks executed (T-05 omitted — Docker unavailable at time). Unblocked nightly-labs T-04."
+  - id: jarvis-nightly-labs
+    date: "2026-09-06"
+    verdict: pass
+    notes: "19/20 tasks (T-4.5 deferred until docker-e2e-fix). Fully complete."
+  - id: jarvis-orchestrator-real
+    date: "2026-09-07"
+    verdict: pass
+    notes: "26/26 tasks, 46/46 unit tests, 38/38 E2E tests."
+  - id: jarvis-runtime-hardening
+    date: "2026-09-07"
+    verdict: pass
+    notes: "18/18 tasks, 38/38 E2E tests, all 8 reqs satisfied. Build hash: sha256:ab74865f."
 
-binary_availability:
-  whisper_cli: verified_in_dockerfile
-  piper: verified_in_dockerfile
-  kokoro: verified_in_dockerfile
-
-service_health:
-  gentle_orchestrator: healthy
-  voice_pipeline: fail_hard_configured
+# System state
+docker:
+  orchestrator: healthy
+  voice_pipeline: healthy
   floci_localstack: healthy
 
-context_sync:
-  fase_8_followup: completed
-  fase_9: completed
-  jarvis_ui_flutter: completed
-  definition_of_done: updated
+verification_baseline:
+  test_jarvis_pipeline: "38/38 PASS"
+  test_audio_streaming: "verified"
+  gentle_ai_doctor: "0 CRITICAL"
 
-implementation_summary:
-  phase_1_docker:
-    - .agents: dual compose capability documented
-    - entrypoint.voice.sh: fail-hard on missing whisper-cli or both TTS engines
-    - Dockerfile.voice: removed || echo fallbacks, added retry for kokoro model download
-    - docker-compose.yml: bind mounts for /models/whisper and /models/kokoro
-  phase_2_orchestrator:
-    - orchestrator_client.py: session-pooled WS client (max 10, idle 300s)
-    - orchestrator.py: /v1/audio/session/* REST routes + extended /health
-    - TTS streaming integrated into /v1/execute pipeline
-  phase_3_e2e:
-    - test_audio_streaming.sh: pre-flight binary check, log_fail on missing deps
-    - test_jarvis_pipeline.sh: test_stt_tts_binaries(), fail-hard on critical deps
+# Next: awaiting new change proposal

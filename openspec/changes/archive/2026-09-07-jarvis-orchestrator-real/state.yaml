@@ -20,7 +20,7 @@ phases:
   tasks: completed
   apply: completed
   verify: completed
-  archive: in_progress
+  archive: completed
 
 dependencies: []
 blockers: []

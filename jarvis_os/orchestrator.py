@@ -19,6 +19,9 @@ from fastapi.responses import JSONResponse
 import uvicorn
 
 from jarvis_os.api.routes.skills import router as skills_router
+from jarvis_os.core.scheduler import IdleScheduler
+from jarvis_os.hud.models import HudStatus
+from jarvis_os.hud.websocket_server import HudWebSocketServer
 from jarvis_os.orchestrator_impl.pipeline import OrchestratorPipeline
 from jarvis_os.skills.executor import SkillExecutor
 from jarvis_os.skills.loader import SkillLoader
@@ -35,6 +38,24 @@ _voice_client: Any = None
 
 # Pipeline singleton
 _pipeline: OrchestratorPipeline | None = None
+
+# HUD WebSocket server singleton
+_hud_server: HudWebSocketServer | None = None
+
+# Idle scheduler singleton (started in lifespan)
+_idle_scheduler: IdleScheduler | None = None
+
+
+def _get_hud_server() -> HudWebSocketServer | None:
+    """Lazy-build the HUD WebSocket server."""
+    global _hud_server
+    if _hud_server is None:
+        try:
+            _hud_server = HudWebSocketServer()
+        except Exception as exc:
+            logger.warning("HUD WebSocket server not available: %s", exc)
+            _hud_server = None
+    return _hud_server
 
 
 def _get_voice_client() -> Any:
@@ -70,13 +91,56 @@ def _get_pipeline(registry: SkillRegistry | None = None) -> OrchestratorPipeline
             executor=executor,
             voice_client=vc,
         )
+        # Wire pipeline events to HUD WebSocket broadcasts
+        _wire_pipeline_to_hud(_pipeline)
     elif registry is not None and not getattr(registry, "_skills", None):
         pass
     return _pipeline
 
 
+def _wire_pipeline_to_hud(pipeline: OrchestratorPipeline) -> None:
+    """Register HUD broadcast listener on the pipeline event bus."""
+    hud = _get_hud_server()
+    if hud is None:
+        return
+
+    def _hud_listener(event: Any) -> None:
+        try:
+            from jarvis_os.orchestrator_impl.events import (
+                SkillExecutionComplete,
+                SkillExecutionStart,
+                VaultWriteEvent,
+            )
+        except ImportError:
+            return
+
+        if isinstance(event, SkillExecutionStart):
+            hud.publish_status(
+                HudStatus.PROCESSING,
+                summary=f"Ejecutando {event.skill_id}",
+                payload=event.model_dump(mode="json"),
+            )
+        elif isinstance(event, SkillExecutionComplete):
+            status = HudStatus.IDLE if event.status == "completed" else HudStatus.ERROR
+            hud.publish_status(
+                status,
+                summary=f"{event.skill_id} {event.status.value}",
+                payload=event.model_dump(mode="json"),
+            )
+        elif isinstance(event, VaultWriteEvent):
+            hud.publish_status(
+                HudStatus.IDLE,
+                summary="Vault actualizado",
+                payload=event.model_dump(mode="json"),
+            )
+
+    pipeline.add_event_listener(_hud_listener)
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    global _idle_scheduler
+
     await plugin_registry.register(ObsidianSkill())
     await plugin_registry.register(OSControlSkill())
     await plugin_registry.register(DevSecOpsSkill())
@@ -102,10 +166,28 @@ async def lifespan(app: FastAPI):
     if vc is not None:
         await vc.start()
         logger.info("Voice client pool started")
+
+    # Start HUD WebSocket server
+    hud = _get_hud_server()
+    if hud is not None:
+        await hud.start()
+        logger.info("HUD WebSocket server started")
+
+    # Start idle scheduler for nightly labs
+    _idle_scheduler = IdleScheduler()
+    _idle_scheduler.start()
+    logger.info("Idle scheduler started")
     yield
+    # Shutdown idle scheduler
+    if _idle_scheduler is not None:
+        _idle_scheduler.stop()
+        logger.info("Idle scheduler stopped")
     # Shutdown voice client pool
     if vc is not None:
         await vc.stop()
+    # Shutdown HUD WebSocket server
+    if hud is not None:
+        await hud.stop()
 
 
 app = FastAPI(title="jarvis-os gentle orchestrator", version="0.1.0", lifespan=lifespan)
@@ -219,6 +301,124 @@ async def audio_sessions_list() -> JSONResponse:
     return JSONResponse({
         "sessions": metrics,
         "voice_client_available": True,
+    })
+
+
+# ============================================================================
+# Nightly Scheduler Endpoints
+# ============================================================================
+
+@app.post("/v1/nightly/scheduler/toggle")
+async def nightly_scheduler_toggle(payload: dict[str, Any] | None = None) -> JSONResponse:
+    """Toggle the idle scheduler on/off or control its state.
+
+    Body (optional):
+        {"action": "start"|"stop"|"pause"|"resume"}
+    Defaults to start/stop toggle when no action is provided.
+    """
+    if _idle_scheduler is None:
+        return JSONResponse(
+            {"error": "Scheduler not initialized"}, status_code=503
+        )
+
+    action = (payload or {}).get("action")
+    status_before = _idle_scheduler.get_status()
+
+    if action == "start" or (action is None and not status_before.get("running")):
+        _idle_scheduler.start()
+    elif action == "stop" or (action is None and status_before.get("running")):
+        _idle_scheduler.stop()
+    elif action == "pause":
+        _idle_scheduler.pause()
+    elif action == "resume":
+        _idle_scheduler.resume()
+    else:
+        return JSONResponse(
+            {"error": f"Unknown action: {action}"},
+            status_code=400,
+        )
+
+    status_after = _idle_scheduler.get_status()
+    return JSONResponse({
+        "status": "ok",
+        "action": action or ("start" if status_after["running"] else "stop"),
+        "scheduler": status_after,
+    })
+
+
+@app.get("/v1/nightly/scheduler/status")
+async def nightly_scheduler_status() -> JSONResponse:
+    """Return current status of the idle scheduler."""
+    if _idle_scheduler is None:
+        return JSONResponse(
+            {"error": "Scheduler not initialized"}, status_code=503
+        )
+
+    return JSONResponse({
+        "status": "ok",
+        "scheduler": _idle_scheduler.get_status(),
+    })
+
+
+@app.get("/v1/nightly/reports")
+async def nightly_reports_list() -> JSONResponse:
+    """List all generated nightly reports.
+
+    Returns a list of available report dates sorted newest-first.
+    """
+    reports_dir = Path("_Nightly_Reports")
+    if not reports_dir.exists():
+        return JSONResponse({"status": "ok", "reports": []})
+
+    reports = []
+    for f in sorted(reports_dir.glob("*.md"), reverse=True):
+        if f.stem and len(f.stem) == 10:  # YYYY-MM-DD format
+            reports.append({
+                "date": f.stem,
+                "filename": f.name,
+                "size_bytes": f.stat().st_size,
+            })
+
+    return JSONResponse({"status": "ok", "reports": reports})
+
+
+@app.get("/v1/nightly/reports/{date}")
+async def nightly_reports_get(date: str) -> JSONResponse:
+    """Fetch a specific nightly report by date (YYYY-MM-DD).
+
+    Returns the full report content with frontmatter and body.
+    """
+    import re
+    if not re.match(r"^\d{4}-\d{2}-\d{2}$", date):
+        return JSONResponse(
+            {"status": "error", "message": "Invalid date format. Use YYYY-MM-DD."},
+            status_code=400,
+        )
+
+    report_path = Path("_Nightly_Reports") / f"{date}.md"
+    if not report_path.exists():
+        return JSONResponse(
+            {"status": "error", "message": f"Report not found for date: {date}"},
+            status_code=404,
+        )
+
+    content = report_path.read_text(encoding="utf-8")
+
+    # Split frontmatter from body
+    body = content
+    frontmatter = {}
+    if content.startswith("---"):
+        parts = content.split("---", 2)
+        if len(parts) >= 3:
+            import yaml
+            frontmatter = yaml.safe_load(parts[1]) or {}
+            body = parts[2].strip()
+
+    return JSONResponse({
+        "status": "ok",
+        "date": date,
+        "frontmatter": frontmatter,
+        "body": body,
     })
 
 

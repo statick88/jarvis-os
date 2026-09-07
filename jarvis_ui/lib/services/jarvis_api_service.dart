@@ -64,6 +64,35 @@ class JarvisApiService {
     }
   }
 
+  /// Consulta el estado del scheduler nightly.
+  Future<Map<String, dynamic>> getNightlyStatus() =>
+      _get('/v1/nightly/scheduler/status', _resolveHost('127.0.0.1'), '3000');
+
+  /// Activa/desactiva el scheduler nightly. Si action es null, hace toggle.
+  Future<Map<String, dynamic>> toggleNightlyScheduler({String? action}) {
+    final payload = action != null ? {'action': action} : <String, dynamic>{};
+    return _post('/v1/nightly/scheduler/toggle', payload, _resolveHost('127.0.0.1'), '3000');
+  }
+
+  Future<Map<String, dynamic>> _post(String path, Map<String, dynamic> data, String host, String port) async {
+    final client = _client('http://$host:$port');
+    int attempt = 0;
+    while (true) {
+      try {
+        final response = await client.post(path, data: data);
+        return response.data as Map<String, dynamic>;
+      } on DioException catch (e) {
+        attempt++;
+        if (attempt >= 2 || !_isRetryable(e)) {
+          return {'status': 'error', 'message': e.toString()};
+        }
+        await Future.delayed(const Duration(seconds: 1));
+      } catch (e) {
+        return {'status': 'error', 'message': e.toString()};
+      }
+    }
+  }
+
   bool _isRetryable(DioException e) {
     return e.type == DioExceptionType.connectionTimeout ||
         e.type == DioExceptionType.receiveTimeout ||

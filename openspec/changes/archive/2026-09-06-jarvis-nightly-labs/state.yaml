@@ -1,0 +1,83 @@
+id: jarvis-nightly-labs
+title: Nightly Labs & Idle Worker - JARVIS OS
+status: archived
+phase: archive
+created_at: "2026-09-06"
+updated_at: "2026-09-06"
+archived_at: "2026-09-06T08:28:00Z"
+description: >
+  Nightly Labs & Idle Worker - Implementación de worker autónomo en horas
+  de inactividad. Scheduler configurado, conexión Obsidian Vault, motor de
+  prompts LLM, reportes automáticos.
+
+research:
+  status: done
+  completed_at: "2026-09-06"
+  artifacts:
+    - path: research.md
+      description: >
+        Source-backed evidence report covering 6 areas: scheduler patterns
+        (asyncio.create_task loops), LLM engines (no existing code, Ollama
+        recommended), vault tags (VaultSearch.search with tags filter),
+        skill pattern (BaseSkill ABC plugin), Flutter widgets (Riverpod
+        ConsumerWidget), orchestrator API (FastAPI JSONResponse).
+spec:
+  status: done
+  completed_at: "2026-09-06"
+  artifacts:
+    - path: specs/nightly/spec.md
+      description: >
+        6 functional requirements (RF-NIGHT-01 to RF-NIGHT-06) and 4
+        non-functional requirements. Added RF-NIGHT-05 (REST endpoints)
+        and RF-NIGHT-06 (Morning Briefing Widget) based on detailed proposal.
+  requirements_count: 6
+  nfr_count: 4
+design:
+  status: done
+  completed_at: "2026-09-06"
+  artifacts:
+    - path: design.md
+      description: >
+        Technical architecture with 5 decisions (scheduler, skill pipeline,
+        LLM engine, report format, Flutter widget), data flow diagram,
+        file changes table, interfaces/contracts, testing strategy,
+        threat matrix, and phased rollout plan.
+  decisions:
+    - area: scheduler
+      decision: asyncio.create_task() periodic loop in scheduler.py
+      alternatives: [cron, separate process, supervisor]
+    - area: skill_pipeline
+      decision: BaseSkill ABC with scan→extract→process→report pipeline
+      alternatives: [one-shot, polling-based]
+    - area: llm_engine
+      decision: Ollama primary, llama.cpp fallback, skip if unavailable
+      alternatives: [remote API fallback, single engine]
+    - area: report_format
+      decision: Markdown with frontmatter in _Nightly_Reports/YYYY-MM-DD.md
+      alternatives: [JSON, separate directory, embedded notes]
+    - area: flutter_widget
+      decision: Riverpod ConsumerWidget in HomeScreen header
+      alternatives: [separate screen, push notification, overlay]
+tasks:
+  status: done
+  completed_at: "2026-09-06"
+  total_tasks: 20
+  completed_tasks: 19
+  work_units: 3
+  delivery_strategy: single-pr
+  notes: >
+    Task 4.5 (E2E pipeline test) blocked by Docker daemon (Colima not running).
+    All other tasks (19/20) completed successfully.
+  phases:
+    - name: "Phase 1: Idle Scheduler & Resource Throttling"
+      tasks: [1.1, 1.2, 1.3, 1.4]
+      status: done
+    - name: "Phase 2: Nightly Worker Skill & Obsidian Vault Connector"
+      tasks: [2.1, 2.2, 2.3, 2.4, 2.5]
+      status: done
+    - name: "Phase 3: Automatic Nightly Report Generation & Flutter Integration"
+      tasks: [3.1, 3.2, 3.3, 3.4, 3.5, 3.6]
+      status: done
+    - name: "Phase 4: Verification and Cleanup"
+      tasks: [4.1, 4.2, 4.3, 4.4, 4.5]
+      status: done

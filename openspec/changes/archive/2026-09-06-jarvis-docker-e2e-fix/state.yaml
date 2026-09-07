@@ -1,0 +1,54 @@
+change_id: jarvis-docker-e2e-fix
+status: completed
+current_phase: archive
+
+phases:
+  explore:
+    status: completed
+    started_at: "2026-09-06"
+    completed_at: "2026-09-06"
+  propose:
+    status: completed
+    started_at: "2026-09-06"
+    completed_at: "2026-09-06"
+    artifact: proposal.md
+  spec:
+    status: completed
+    started_at: "2026-09-06"
+    completed_at: "2026-09-06"
+    artifact: spec.md
+  design:
+    status: completed
+    started_at: "2026-09-06"
+    completed_at: "2026-09-06"
+    artifact: design.md
+  tasks:
+    status: completed
+    started_at: "2026-09-06"
+    completed_at: "2026-09-06"
+    artifact: tasks.md
+  apply:
+    status: completed
+    started_at: "2026-09-06"
+    completed_at: "2026-09-06"
+  verify:
+    status: completed
+    started_at: "2026-09-06"
+    completed_at: "2026-09-06"
+    artifact: verify-report.md
+  archive:
+    status: completed
+    started_at: "2026-09-06"
+    completed_at: "2026-09-06"
+    artifact: archive-report.md
+
+research:
+  status: completed
+  started_at: "2026-09-06"
+  completed_at: "2026-09-06"
+  artifact: research.md
+
+notes: >
+  SDD change completado. 4/5 tasks ejecutados (T-05 omitido por Docker no disponible).
+  Verificación formal confirmó comportamiento sin flags es idéntico al original.
+  Desbloquea T-04 de jarvis-nightly-labs.

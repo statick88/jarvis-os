@@ -61,5 +61,5 @@ Chain strategy: feature-branch-chain
 ## Phase 5: Verification
 
 - [x] 5.1 Run `pytest jarvis_os/orchestrator/ -v` and verify all tests pass
-- [ ] 5.2 Run existing `bash scripts/test_jarvis_pipeline.sh` to verify no regression
+- [x] 5.2 Run existing `bash scripts/test_jarvis_pipeline.sh` to verify no regression
 - [x] 5.3 Verify `/api/v1/skills/*` endpoints still functional

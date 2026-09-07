@@ -10,6 +10,7 @@ services:
     hostname: jarvis-orchestrator
     ports:
       - "127.0.0.1:3000:3000"
+      - "127.0.0.1:8083:8083"
     volumes:
       - ../vault:/app/vault:rw
       - ../.skills:/app/.skills:ro

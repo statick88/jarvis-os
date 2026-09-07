@@ -56,6 +56,7 @@ from jarvis_os.vault.models import (
     WIKILINK_RE,
 )
 from jarvis_os.vault.indexer import VaultIndexer
+from jarvis_os.vault.output_logger import VaultOutputLogger, parse_output_frontmatter
 from jarvis_os.vault.search import VaultSearch
 from jarvis_os.vault.graph import KnowledgeGraphBuilder
 from jarvis_os.vault.stats import VaultStatsComputer
@@ -92,6 +93,7 @@ __all__ = [
     "VaultIndexer",
     "VaultNote",
     "VaultOperationResult",
+    "VaultOutputLogger",
     "VaultParseError",
     "VaultSearch",
     "VaultStats",
@@ -105,5 +107,6 @@ __all__ = [
     "extract_frontmatter_links",
     "extract_wikilinks",
     "parse_frontmatter_block",
+    "parse_output_frontmatter",
     "resolve_links",
 ]

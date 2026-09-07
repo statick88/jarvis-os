@@ -1,0 +1,12 @@
+id: jarvis-nightly-labs
+title: Nightly Labs & Idle Worker - JARVIS OS
+status: active
+phase: propose
+created_at: "2026-09-06"
+updated_at: "2026-09-06"
+description: >
+  Implementación de Laboratorio Nocturno Autónomo (Nightly Autonomous Worker)
+  que ejecuta tareas asíncronas en horas de inactividad (00:00-06:00) usando
+  inferencia local para auditorías, análisis de código y experimentación
+  contextualizada. Incluye scheduler de idle, conector Obsidian Vault, motor de
+  prompts LLMs locales y generación automática de reportes Nightly.

@@ -1,0 +1,13 @@
+id: jarvis-docker-e2e-fix
+title: Docker E2E Pipeline Fix - Desbloquear Testing Integrado
+status: completed
+phase: archive
+created_at: "2026-09-06"
+updated_at: "2026-09-06"
+description: >
+  Desbloquear el test E2E (test_jarvis_pipeline.sh) que permanece bloqueado
+  desde el ciclo jarvis-nightly-labs. El daemon Docker (Colima) no está
+  ejecutándose, impidiendo la validación del pipeline completo: Docker Compose
+  health → Pipeline (texto → adapter → plan → vault → SQS). Este cambio
+  habilita el auto-start de Colima, añade degradación graceful al script E2E,
+  y permite que la tarea 4.5 del ciclo anterior se complete.
