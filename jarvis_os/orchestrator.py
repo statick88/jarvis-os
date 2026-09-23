@@ -19,19 +19,21 @@ from fastapi.responses import JSONResponse
 import uvicorn
 
 from jarvis_os.api.routes.skills import router as skills_router
+from jarvis_os.config import get_settings
 from jarvis_os.core.scheduler import IdleScheduler
 from jarvis_os.hud.models import HudStatus
 from jarvis_os.hud.websocket_server import HudWebSocketServer
 from jarvis_os.orchestrator_impl.pipeline import OrchestratorPipeline
 from jarvis_os.skills.executor import SkillExecutor
 from jarvis_os.skills.loader import SkillLoader
-from jarvis_os.skills.plugin_registry_instance import shared_registry as plugin_registry
 from jarvis_os.skills.registry import SkillRegistry
-from jarvis_os.skills.obsidian import ObsidianSkill
-from jarvis_os.skills.os_control import OSControlSkill
-from jarvis_os.skills.devsecops import DevSecOpsSkill
 
 logger = logging.getLogger(__name__)
+
+# Constants for duplicated string literals (SonarQube S1192)
+_VOICE_CLIENT_UNAVAILABLE = "Voice client not available"
+_SKILLS_DIR = ".skills"
+_TTS_SESSION_ID = "jarvis-tts"
 
 # Voice client singleton (lazily initialized)
 _voice_client: Any = None
@@ -76,24 +78,62 @@ def _get_voice_client() -> Any:
     return _voice_client
 
 
+def _check_voice_client() -> Any:
+    """Get voice client or return None, logging unavailability."""
+    vc = _get_voice_client()
+    if vc is None:
+        logger.debug(_VOICE_CLIENT_UNAVAILABLE)
+    return vc
+
+
+_tts_session_opened: bool = False
+
+
+async def _tts_callback(text: str) -> None:
+    """Async callback for TTS auto-trigger after skill execution.
+
+    Bridges the pipeline's ``Callable[[str], Awaitable[None]]`` interface
+    to ``OrchestratorVoiceClient.send_text(session_id, text)``.
+
+    Opens the TTS session lazily on the first invocation using the default
+    ``_TTS_SESSION_ID`` constant.  Subsequent calls reuse the open session.
+    """
+    global _tts_session_opened
+    vc = _check_voice_client()
+    if vc is None:
+        return
+    try:
+        if not _tts_session_opened:
+            await vc.open_session(_TTS_SESSION_ID)
+            _tts_session_opened = True
+            logger.info("Opened default TTS session %s", _TTS_SESSION_ID)
+        await vc.send_text(_TTS_SESSION_ID, text)
+    except Exception as exc:
+        logger.warning("TTS callback failed: %s", exc)
+
+
 def _get_pipeline(registry: SkillRegistry | None = None) -> OrchestratorPipeline:
     """Lazy-build the OrchestratorPipeline singleton."""
     global _pipeline
     if _pipeline is None:
         if registry is None:
             registry = SkillRegistry()
-        loader = SkillLoader(skills_dir=Path(".skills"))
+        loader = SkillLoader(skills_dir=Path(_SKILLS_DIR))
         executor = SkillExecutor(default_timeout=30)
         vc = _get_voice_client()
+        settings = get_settings()
         _pipeline = OrchestratorPipeline(
             registry=registry,
             loader=loader,
             executor=executor,
             voice_client=vc,
+            vault_root=settings.vault.vault_root,
+            tts_callback=_tts_callback,
         )
         # Wire pipeline events to HUD WebSocket broadcasts
         _wire_pipeline_to_hud(_pipeline)
     elif registry is not None and not getattr(registry, "_skills", None):
+        # Registry provided but not yet loaded; pipeline will use existing singleton
         pass
     return _pipeline
 
@@ -141,17 +181,12 @@ def _wire_pipeline_to_hud(pipeline: OrchestratorPipeline) -> None:
 async def lifespan(app: FastAPI):
     global _idle_scheduler
 
-    await plugin_registry.register(ObsidianSkill())
-    await plugin_registry.register(OSControlSkill())
-    await plugin_registry.register(DevSecOpsSkill())
-    logger.info("Registered %d skill plugins", len(plugin_registry._skills))
-
     # Load SkillRegistry from .skills/ directory for the execution pipeline
     skill_registry = SkillRegistry()
-    skill_loader = SkillLoader(skills_dir=Path(".skills"))
+    skill_loader = SkillLoader(skills_dir=Path(_SKILLS_DIR))
     try:
         count = await skill_registry.load_from_directory(
-            skills_dir=Path(".skills"), loader=skill_loader
+            skills_dir=Path(_SKILLS_DIR), loader=skill_loader
         )
         logger.info("Loaded %d skills into execution registry", count)
     except Exception as exc:
@@ -222,9 +257,9 @@ async def health() -> JSONResponse:
 @app.post("/v1/audio/session/open")
 async def audio_session_open(payload: dict[str, Any]) -> JSONResponse:
     """Open a new voice session via WebSocket."""
-    vc = _get_voice_client()
+    vc = _check_voice_client()
     if vc is None:
-        return JSONResponse({"error": "Voice client not available"}, status_code=503)
+        return JSONResponse({"error": _VOICE_CLIENT_UNAVAILABLE}, status_code=503)
 
     session_id = payload.get("session_id")
     try:
@@ -243,9 +278,9 @@ async def audio_session_open(payload: dict[str, Any]) -> JSONResponse:
 @app.post("/v1/audio/session/{session_id}/send-audio")
 async def audio_session_send_audio(session_id: str, payload: dict[str, Any]) -> JSONResponse:
     """Send audio data to an existing voice session."""
-    vc = _get_voice_client()
+    vc = _check_voice_client()
     if vc is None:
-        return JSONResponse({"error": "Voice client not available"}, status_code=503)
+        return JSONResponse({"error": _VOICE_CLIENT_UNAVAILABLE}, status_code=503)
 
     audio_b64 = payload.get("audio_data", "")
     import base64
@@ -264,9 +299,9 @@ async def audio_session_send_audio(session_id: str, payload: dict[str, Any]) -> 
 @app.post("/v1/audio/session/{session_id}/send-text")
 async def audio_session_send_text(session_id: str, payload: dict[str, Any]) -> JSONResponse:
     """Send text for TTS synthesis via an existing voice session."""
-    vc = _get_voice_client()
+    vc = _check_voice_client()
     if vc is None:
-        return JSONResponse({"error": "Voice client not available"}, status_code=503)
+        return JSONResponse({"error": _VOICE_CLIENT_UNAVAILABLE}, status_code=503)
 
     text = payload.get("text", "")
     try:
@@ -279,9 +314,9 @@ async def audio_session_send_text(session_id: str, payload: dict[str, Any]) -> J
 @app.delete("/v1/audio/session/{session_id}")
 async def audio_session_close(session_id: str) -> JSONResponse:
     """Close an active voice session."""
-    vc = _get_voice_client()
+    vc = _check_voice_client()
     if vc is None:
-        return JSONResponse({"error": "Voice client not available"}, status_code=503)
+        return JSONResponse({"error": _VOICE_CLIENT_UNAVAILABLE}, status_code=503)
 
     try:
         await vc.close_session(session_id)
@@ -293,7 +328,7 @@ async def audio_session_close(session_id: str) -> JSONResponse:
 @app.get("/v1/audio/sessions")
 async def audio_sessions_list() -> JSONResponse:
     """List active voice sessions."""
-    vc = _get_voice_client()
+    vc = _check_voice_client()
     if vc is None:
         return JSONResponse({"sessions": [], "voice_client_available": False})
 
