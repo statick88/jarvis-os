@@ -12,6 +12,7 @@ from jarvis_os.skills.handlers.tendencias import run as tendencias_run
 from jarvis_os.skills.handlers.plan import run as plan_run
 from jarvis_os.skills.handlers.boveda import run as boveda_run
 from jarvis_os.skills.handlers.obsidian import run as obsidian_run
+from jarvis_os.skills.handlers.bffla_idor import run as bffla_idor_run
 
 __all__ = [
     "metricas_run",
@@ -19,4 +20,6 @@ __all__ = [
     "tendencias_run",
     "plan_run",
     "boveda_run",
+    "obsidian_run",
+    "bffla_idor_run",
 ]

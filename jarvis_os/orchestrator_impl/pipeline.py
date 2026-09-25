@@ -26,7 +26,8 @@ import asyncio
 import logging
 import uuid
 from datetime import datetime, timezone
-from typing import Any
+from pathlib import Path
+from typing import Any, Awaitable, Callable, Optional
 
 from fastapi.responses import JSONResponse
 
@@ -43,9 +44,16 @@ from jarvis_os.orchestrator_impl.errors import (
 from jarvis_os.orchestrator_impl.intent import IntentAnalyzer, IntentResult
 from jarvis_os.orchestrator_impl.resolver import ResolvedSkill, SkillResolver
 from jarvis_os.skills.executor import SkillExecutor
+from jarvis_os.skills.loader import SkillLoader
 from jarvis_os.skills.models import SkillMetadata
+from jarvis_os.skills.registry import SkillRegistry
+from jarvis_os.vault.output_logger import VaultOutputLogger
+from jarvis_os.vault.models import VaultWriteError
 
 logger = logging.getLogger(__name__)
+
+# Constant for duplicated string literal (SonarQube S1192)
+_VAULT_WRITE_FAILED = "Vault output write failed: %s"
 
 
 def _utcnow() -> datetime:
@@ -61,21 +69,29 @@ class OrchestratorPipeline:
         executor: ``SkillExecutor`` for running resolved skills.
         voice_client: Optional ``OrchestratorVoiceClient`` for TTS streaming.
         opencode_client: Optional ``OpenCodeClient`` for code execution.
+        vault_root: Optional vault root path for ``VaultOutputLogger``.
+        tts_callback: Optional async callback ``(text: str) -> None`` for TTS auto-trigger.
     """
 
     def __init__(
         self,
-        registry: Any,
-        loader: Any,
+        registry: SkillRegistry,
+        loader: SkillLoader,
         executor: SkillExecutor,
-        voice_client: Any = None,
-        opencode_client: Any = None,
+        voice_client: Optional[Any] = None,
+        opencode_client: Optional[Any] = None,
+        vault_root: Optional[Path] = None,
+        tts_callback: Optional[Callable[[str], Awaitable[None]]] = None,
     ) -> None:
         self._registry = registry
         self._loader = loader
         self._executor = executor
         self._voice_client = voice_client
         self._opencode_client = opencode_client
+        self._vault_logger: Optional[VaultOutputLogger] = (
+            VaultOutputLogger(vault_root=vault_root) if vault_root else None
+        )
+        self._tts_callback = tts_callback
         self._intent_analyzer = IntentAnalyzer()
         self._event_listeners: list[Any] = []
 
@@ -107,10 +123,11 @@ class OrchestratorPipeline:
         ``session_id`` are present in the payload.
         """
         envelope: dict[str, Any]
+        event: Optional[SkillExecutionComplete] = None
         try:
             intent_result = self._analyze_intent(payload)
             resolved = self._resolve_skill(intent_result, payload)
-            exec_result = await self._execute_skill(resolved, payload)
+            exec_result, event = await self._execute_skill(resolved, payload)
             envelope = self._format_response(exec_result)
         except IntentAnalysisError as exc:
             envelope = self._error_envelope(str(exc))
@@ -126,21 +143,78 @@ class OrchestratorPipeline:
             envelope = self._error_envelope(f"internal error: {exc}")
             return JSONResponse(envelope, status_code=500)
 
-        # Post-execution: TTS streaming (fire-and-forget)
-        tts_text = payload.get("tts_text")
-        session_id = payload.get("session_id")
-        if tts_text and session_id and self._voice_client is not None:
-            try:
-                asyncio.create_task(
-                    self._voice_client.send_text(session_id, tts_text)
-                )
-                envelope["payload"]["tts_streamed"] = True
-            except Exception as exc:  # noqa: BLE001
-                logger.warning("TTS streaming failed: %s", exc)
-                envelope["payload"]["tts_streamed"] = False
+        # Post-execution: vault write + TTS (fire-and-forget)
+        if event is not None:
+            await self._on_skill_complete(event, input_data=payload.get("input"), exec_result=exec_result)
 
         status_code = 200 if envelope["payload"].get("success") else 422
         return JSONResponse(envelope, status_code=status_code)
+
+    async def _on_skill_complete(
+        self,
+        event: SkillExecutionComplete,
+        input_data: Optional[dict[str, Any]] = None,
+        exec_result: Optional[dict[str, Any]] = None,
+    ) -> None:
+        """Post-execution hook: vault write + TTS auto-trigger."""
+        # Vault output persistence
+        if self._vault_logger and event.status == ExecutionStatus.COMPLETED:
+            try:
+                # Use actual execution result for vault output, fallback to event.output_ref
+                if exec_result and exec_result.get("success") and exec_result.get("result"):
+                    result_data = {
+                        "success": True,
+                        "result": exec_result.get("result"),
+                    }
+                else:
+                    result_data = {
+                        "success": True,
+                        "result": {"output_ref": event.output_ref},
+                    }
+                # Await the vault write to get the output_ref, then emit VaultWriteEvent
+                await self._write_vault_and_emit(event, input_data, result_data)
+            except VaultWriteError as exc:
+                # Log but don't fail the pipeline on vault write errors
+                logger.warning(_VAULT_WRITE_FAILED, exc)
+            except Exception as exc:  # noqa: BLE001
+                logger.warning(_VAULT_WRITE_FAILED, exc)
+
+        # TTS auto-trigger
+        if self._tts_callback and event.tts_text:
+            try:
+                asyncio.ensure_future(self._tts_callback(event.tts_text))
+            except Exception as exc:  # noqa: BLE001
+                logger.warning("TTS callback failed: %s", exc)
+
+    async def _write_vault_and_emit(
+        self,
+        event: SkillExecutionComplete,
+        input_data: Optional[dict[str, Any]],
+        result_data: dict[str, Any],
+    ) -> None:
+        """Write vault output and emit VaultWriteEvent with the returned output_ref."""
+        # _on_skill_complete guarantees _vault_logger is not None
+        assert self._vault_logger is not None
+        try:
+            output_ref = await self._vault_logger.write_execution(
+                skill_id=event.skill_id,
+                input_data=input_data or {},
+                result=result_data,
+            )
+            # Update the event with the actual vault output_ref
+            event.output_ref = output_ref
+            # Emit VaultWriteEvent
+            from jarvis_os.orchestrator_impl.events import VaultWriteEvent
+            vault_event = VaultWriteEvent(
+                path=str(self._vault_logger.vault_root / output_ref),
+                note_id=Path(output_ref).stem,
+                links_added=[],  # Could be enhanced to extract links from output
+            )
+            await self._emit(vault_event)
+        except VaultWriteError as exc:
+            logger.warning(_VAULT_WRITE_FAILED, exc)
+        except Exception as exc:  # noqa: BLE001
+            logger.warning(_VAULT_WRITE_FAILED, exc)
 
     # --- Phase 1: Intent Analysis --------------------------------------------
 
@@ -206,7 +280,7 @@ class OrchestratorPipeline:
 
     async def _execute_skill(
         self, resolved: ResolvedSkill, payload: dict[str, Any]
-    ) -> dict[str, Any]:
+    ) -> tuple[dict[str, Any], Optional[SkillExecutionComplete]]:
         """Execute the resolved skill and return its outcome.
 
         Args:
@@ -214,12 +288,11 @@ class OrchestratorPipeline:
             payload: Incoming request payload (forwarded as input_data).
 
         Returns:
-            Execution result dict with ``success`` and either ``result`` or
-            ``error``.
+            Tuple of (execution result dict, completion event or None).
         """
         # OpenCode path
         if resolved.source == "opencode":
-            return await self._execute_via_opencode(payload)
+            return await self._execute_via_opencode(payload), None
 
         skill = resolved.skill
         input_data = {
@@ -231,7 +304,7 @@ class OrchestratorPipeline:
         # Skill composition: check for chained skills
         composition = payload.get("composition", [])
         if composition and len(composition) > 1:
-            return await self._execute_composition(input_data, composition)
+            return await self._execute_composition(input_data, composition), None
 
         # Single skill execution
         # skill is non-None here: _resolve_skill raises SkillResolutionError otherwise
@@ -256,11 +329,12 @@ class OrchestratorPipeline:
             status=ExecutionStatus.COMPLETED if result.ok else ExecutionStatus.FAILED,
             duration_ms=duration_ms,
             error=None if result.ok else result.error,
+            tts_text=payload.get("tts_text"),
         )
         await self._emit(complete_event)
 
         if result.ok:
-            return {"success": True, "result": result.output}
+            return {"success": True, "result": result.output}, complete_event
         raise SkillExecutionPipelineError(
             f"skill {skill.id!r} failed: {result.error}"
         )
@@ -277,6 +351,8 @@ class OrchestratorPipeline:
         from jarvis_os.opencode_adapter.protocol import create_request
         from jarvis_os.opencode_adapter.models import SkillContext
 
+        # _resolve_skill guarantees _opencode_client is not None here
+        assert self._opencode_client is not None
         code = payload.get("text", "")
         context = SkillContext(
             session_id=uuid.uuid4(),

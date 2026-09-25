@@ -315,6 +315,218 @@ class TestLatencyMeasurement:
 
 
 # ---------------------------------------------------------------------------
+# Test: Full Closed-Loop E2E (E2E-07)
+# ---------------------------------------------------------------------------
+
+class TestFullClosedLoop:
+    """Complete Voice → Skill → Vault → HUD → TTS loop."""
+
+    @pytest.fixture
+    def pipeline(self, tmp_vault: Path):
+        """Create a real OrchestratorPipeline with mocked dependencies."""
+        from jarvis_os.orchestrator_impl.pipeline import OrchestratorPipeline
+        from jarvis_os.skills.registry import SkillRegistry
+        from jarvis_os.skills.loader import SkillLoader
+        from jarvis_os.skills.executor import SkillExecutor
+        from jarvis_os.skills.models import (
+            ExecutionConfig, ExecutionStatus, ExecutionType, SkillFrontmatter, SkillMetadata
+        )
+
+        # Create a test skill that matches an existing capability in the default map
+        # "obsidian.create_note" maps to "crear nota" in the default capability map
+        frontmatter = SkillFrontmatter(
+            id="skill.test",
+            name="Test Skill",
+            version="1.0.0",
+            description="Test skill for E2E",
+            capabilities=["obsidian.create_note"],
+            input_schema={"type": "object"},
+            output_schema={"type": "object"},
+            execution=ExecutionConfig(),
+            execution_type=ExecutionType.PYTHON,
+        )
+        skill = SkillMetadata(
+            id=frontmatter.id,
+            name=frontmatter.name,
+            version=frontmatter.version,
+            description=frontmatter.description,
+            path=Path("/tmp/fake.md"),
+            frontmatter=frontmatter,
+        )
+
+        registry = SkillRegistry()
+        registry.register(skill)
+
+        loader = MagicMock(spec=SkillLoader)
+        executor = MagicMock(spec=SkillExecutor)
+
+        # Mock executor to return success with tts_text
+        result = MagicMock()
+        result.ok = True
+        result.output = {"result": "Health check OK", "output_ref": ""}
+        result.status = ExecutionStatus.SUCCESS
+        result.error = None
+        executor.execute = AsyncMock(return_value=result)
+
+        # TTS callback recorder
+        tts_calls = []
+
+        async def mock_tts_callback(text: str):
+            tts_calls.append(text)
+
+        pipeline = OrchestratorPipeline(
+            registry=registry,
+            loader=loader,
+            executor=executor,
+            vault_root=tmp_vault,
+            tts_callback=mock_tts_callback,
+        )
+
+        # HUD event recorder
+        hud_events = []
+
+        def capture_hud_event(event):
+            hud_events.append(event)
+
+        pipeline.add_event_listener(capture_hud_event)
+
+        # Attach recorders to pipeline for test access
+        pipeline._test_tts_calls = tts_calls
+        pipeline._test_hud_events = hud_events
+
+        return pipeline
+
+    @pytest.mark.asyncio
+    async def test_full_voice_skill_vault_hud_tts_loop(self, pipeline, tmp_vault: Path):
+        """Single test exercises Voice → Skill → Vault → HUD → TTS loop."""
+        # Execute pipeline with test input that matches the skill capability
+        # "crear nota" matches "obsidian.create_note" in default capability map
+        payload = {"text": "crear nota", "tts_text": "System healthy"}
+        response = await pipeline.execute(payload)
+
+        # 1. Assert pipeline returns success
+        assert response.status_code == 200
+        import json
+        body = json.loads(response.body) if isinstance(response.body, bytes) else response.body
+        assert body["payload"]["success"] is True
+
+        # 2. Assert vault output file exists with correct frontmatter
+        output_files = list(tmp_vault.rglob("outputs/**/*.md"))
+        assert len(output_files) == 1
+        vault_file = output_files[0]
+        content = vault_file.read_text()
+        assert "skill.test" in content
+        assert '"result": "Health check OK"' in content or "Health check OK" in content
+        assert "output_ref:" in content
+        assert "status: \"success\"" in content or "status: success" in content
+
+        # 3. Assert HUD broadcast was called with SkillExecutionComplete payload
+        hud_events = pipeline._test_hud_events
+        skill_complete_events = [e for e in hud_events if isinstance(e, SkillExecutionComplete)]
+        assert len(skill_complete_events) == 1
+        skill_event = skill_complete_events[0]
+        assert skill_event.skill_id == "skill.test"
+        assert skill_event.status == ExecutionStatus.COMPLETED
+        assert skill_event.tts_text == "System healthy"
+        assert skill_event.output_ref != ""  # Should be populated after vault write
+
+        # 4. Assert VaultWriteEvent was emitted
+        vault_events = [e for e in hud_events if isinstance(e, VaultWriteEvent)]
+        assert len(vault_events) == 1
+        vault_event = vault_events[0]
+        assert vault_event.path == str(vault_file)
+        assert vault_event.note_id == vault_file.stem
+
+        # 5. Assert TTS callback was invoked with response text
+        tts_calls = pipeline._test_tts_calls
+        # Yield to event loop for fire-and-forget TTS callback
+        await asyncio.sleep(0)
+        assert len(tts_calls) == 1
+        assert tts_calls[0] == "System healthy"
+
+    @pytest.mark.asyncio
+    async def test_no_tts_when_tts_text_none(self, pipeline, tmp_vault: Path):
+        """When tts_text is None, no TTS call is made."""
+        # Reset recorders
+        pipeline._test_tts_calls.clear()
+        pipeline._test_hud_events.clear()
+
+        payload = {"text": "crear nota"}  # No tts_text, matches skill capability
+        response = await pipeline.execute(payload)
+
+        assert response.status_code == 200
+        # Vault file should still be created
+        output_files = list(tmp_vault.rglob("outputs/**/*.md"))
+        assert len(output_files) == 1
+
+        # But no TTS call
+        assert len(pipeline._test_tts_calls) == 0
+
+    @pytest.mark.asyncio
+    async def test_failed_skill_does_not_write_vault(self, tmp_vault: Path):
+        """Failed skill execution does NOT write vault output."""
+        from jarvis_os.orchestrator_impl.pipeline import OrchestratorPipeline
+        from jarvis_os.skills.registry import SkillRegistry
+        from jarvis_os.skills.loader import SkillLoader
+        from jarvis_os.skills.executor import SkillExecutor
+        from jarvis_os.skills.models import (
+            ExecutionConfig, ExecutionStatus, ExecutionType, SkillFrontmatter, SkillMetadata
+        )
+
+        frontmatter = SkillFrontmatter(
+            id="skill.fail",
+            name="Fail Skill",
+            version="1.0.0",
+            description="Skill that fails",
+            capabilities=["obsidian.create_note"],
+            input_schema={"type": "object"},
+            output_schema={"type": "object"},
+            execution=ExecutionConfig(),
+            execution_type=ExecutionType.PYTHON,
+        )
+        skill = SkillMetadata(
+            id=frontmatter.id,
+            name=frontmatter.name,
+            version=frontmatter.version,
+            description=frontmatter.description,
+            path=Path("/tmp/fake.md"),
+            frontmatter=frontmatter,
+        )
+
+        registry = SkillRegistry()
+        registry.register(skill)
+
+        loader = MagicMock(spec=SkillLoader)
+        executor = MagicMock(spec=SkillExecutor)
+
+        # Mock executor to return failure
+        result = MagicMock()
+        result.ok = False
+        result.output = {}
+        result.status = ExecutionStatus.FAILED
+        result.error = "something failed"
+        executor.execute = AsyncMock(return_value=result)
+
+        pipeline = OrchestratorPipeline(
+            registry=registry,
+            loader=loader,
+            executor=executor,
+            vault_root=tmp_vault,
+            tts_callback=AsyncMock(),
+        )
+
+        payload = {"text": "crear nota", "tts_text": "Failed"}
+        response = await pipeline.execute(payload)
+
+        # Should return 422
+        assert response.status_code == 422
+
+        # No vault file should be created
+        output_files = list(tmp_vault.rglob("outputs/**/*.md"))
+        assert len(output_files) == 0
+
+
+# ---------------------------------------------------------------------------
 # Entry Point
 # ---------------------------------------------------------------------------
 

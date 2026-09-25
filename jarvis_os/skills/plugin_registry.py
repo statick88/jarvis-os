@@ -2,6 +2,13 @@
 
 Scans ``jarvis_os/skills`` for ``plugin.py`` files and registers
 ``BaseSkill`` subclasses automatically.
+
+.. todo::
+    DELETE this module after confirming no runtime code references
+    ``shared_registry`` or ``PluginRegistry``.  The API routes file
+    (``jarvis_os/api/routes/skills.py``) still imports
+    ``shared_registry`` for backward-compatible legacy endpoints;
+    migrate those to ``SkillRegistry`` + ``SkillExecutor`` first.
 """
 
 from __future__ import annotations
@@ -18,9 +25,21 @@ logger = logging.getLogger(__name__)
 
 
 class PluginRegistry:
-    """Registry for skill plugins with filesystem autodiscovery."""
+    """Registry for skill plugins with filesystem autodiscovery.
+
+    .. deprecated::
+        Use :class:`SkillRegistry` + :class:`SkillExecutor` instead.
+        ``PluginRegistry`` is kept only for the legacy lifespan registration
+        and will be removed in the next cycle.
+    """
 
     def __init__(self) -> None:
+        import warnings
+        warnings.warn(
+            "PluginRegistry is deprecated; use SkillRegistry + SkillExecutor.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
         self._skills: dict[str, BaseSkill] = {}
 
     async def register(self, skill: BaseSkill) -> None:
@@ -54,6 +73,12 @@ class PluginRegistry:
 
     async def discover_and_load(self, skills_dir: str | Path) -> None:
         """Scan a directory for ``plugin.py`` files and register found skills."""
+        import warnings
+        warnings.warn(
+            "PluginRegistry.discover_and_load is deprecated; use SkillRegistry.load_from_directory.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
         skills_path = Path(skills_dir)
         if not skills_path.is_dir():
             logger.warning("Skills directory %s does not exist", skills_path)
