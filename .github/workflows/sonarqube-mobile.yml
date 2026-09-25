@@ -53,9 +53,12 @@ jobs:
       - name: SonarQube Scan
         uses: SonarSource/sonarqube-scan-action@v4
         env:
-          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          # SonarQube 9.9 rejects "Authorization: Bearer"; the token must be sent as
+          # the Basic-auth username, i.e. -Dsonar.login, not -Dsonar.token.
+          SONAR_LOGIN: ${{ secrets.SONAR_TOKEN }}
         with:
           args: >
+            -Dsonar.login=${{ env.SONAR_LOGIN }}
             -Dsonar.projectKey=${{ env.SONAR_PROJECT_KEY }}
             -Dsonar.organization=${{ env.SONAR_ORGANIZATION }}
             -Dsonar.sources=lib

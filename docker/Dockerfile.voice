@@ -252,11 +252,11 @@ ENV WHISPER_MODEL=base \
     LD_LIBRARY_PATH=/usr/local/lib:$LD_LIBRARY_PATH
 
 # Exponer puerto
-EXPOSE 8180
+EXPOSE 8080
 
 # Healthcheck
 HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
-    CMD curl -f http://localhost:8180/health || exit 1
+    CMD curl -f http://localhost:8080/health || exit 1
 
 ENTRYPOINT ["/entrypoint.sh"]
 CMD ["python", "-m", "jarvis_os.voice_bridge.server"]

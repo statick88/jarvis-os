@@ -566,7 +566,7 @@ async def _cleanup_session(
 @app.on_event("startup")
 async def on_startup() -> None:
     session_manager.start_cleanup_loop()
-    logger.info("Voice pipeline started (WebSocket: ws://0.0.0.0:8180/v1/audio/stream)")
+    logger.info("Voice pipeline started (WebSocket: ws://0.0.0.0:8080/v1/audio/stream)")
 
 
 @app.on_event("shutdown")
@@ -576,4 +576,4 @@ async def on_shutdown() -> None:
 
 
 if __name__ == "__main__":
-    uvicorn.run(app, host="0.0.0.0", port=8180)
+    uvicorn.run(app, host="0.0.0.0", port=8080)

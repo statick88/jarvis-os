@@ -1,7 +1,7 @@
 # SonarQube Setup for JARVIS-OS
 
 ## Current Status
-- **SonarQube**: Running on `http://localhost:9100` (VPS)
+- **SonarQube**: Running on `http://localhost:9000` (VPS)
 - **Project Key**: `jarvis-os`
 - **Scanner Token**: `$SONAR_TOKEN`
 - **Scanner**: SonarScanner 5.x with Java 17
@@ -9,9 +9,15 @@
 ## SonarQube Configuration
 
 ### Server Access
-- **URL**: `http://vps.tailb05787.ts.net:9100` (via Tailscale)
-- **Admin**: `admin` / `SonarQube2026!`
-- **Scanner Token**: `$SONAR_TOKEN`
+- **URL**: `http://100.65.184.25:9000` (Tailscale only; not published on the public interface)
+- **Admin**: `admin` / stored in GitHub secret `SONAR_ADMIN_PASSWORD` (rotated 2026-09-25)
+- **Scanner Token**: `$SONAR_TOKEN` (GitHub secret)
+
+> **Auth quirk (verified 2026-09-25).** SonarQube 9.9.8 rejects `Authorization: Bearer <token>` and
+> answers `401`, even when the token is valid and present in the database. The token must be sent as the
+> **Basic-auth username**, so use `-Dsonar.login=$SONAR_TOKEN` and never `-Dsonar.token=`.
+> Quick check: `curl -u "$SONAR_TOKEN:" http://100.65.184.25:9000/api/system/status` → `200`.
+> The `sonarqube-quality-gate-action` step keeps its contractual `SONAR_TOKEN` env name.
 
 ### Project Configuration
 ```properties
@@ -24,7 +30,7 @@ sonar.python.version=3.12
 sonar.python.coverage.reportPaths=coverage.xml
 sonar.exclusions=**/tests/**,**/migrations/**,**/alembic/**,**/__pycache__/**,**/__init__.py
 sonar.python.coverage.reportPaths=coverage.xml
-sonar.host.url=http://localhost:9100
+sonar.host.url=http://localhost:9000
 sonar.login=$SONAR_TOKEN
 ```
 
@@ -89,7 +95,7 @@ jobs:
         uses: SonarSource/sonarqube-scan-action@v4
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-          SONAR_HOST_URL: http://vps.tailb05787.ts.net:9100
+          SONAR_HOST_URL: http://vps.tailb05787.ts.net:9000
         with:
           args: >
             -Dsonar.projectKey=jarvis-os
@@ -116,12 +122,12 @@ jobs:
         timeout-minutes: 5
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-          SONAR_HOST_URL: http://vps.tailb05787.ts.net:9100
+          SONAR_HOST_URL: http://vps.tailb05787.ts.net:9000
 ```
 
 ## SonarQube Quality Gate Configuration
 
-### Web UI Setup (http://vps.tailb05787.ts.net:9100)
+### Web UI Setup (http://vps.tailb05787.ts.net:9000)
 1. Login: `admin` / `SonarQube2026!`
 2. Go to **Quality Gates** → **Create**
 3. Name: `jarvis-os-quality-gate`
@@ -154,7 +160,7 @@ sonar.python.version=3.12
 sonar.python.coverage.reportPaths=coverage.xml
 sonar.exclusions=**/tests/**,**/migrations/**,**/alembic/**,**/__pycache__/**,**/__init__.py
 sonar.python.coverage.reportPaths=coverage.xml
-sonar.host.url=http://vps.tailb05787.ts.net:9100
+sonar.host.url=http://vps.tailb05787.ts.net:9000
 sonar.login=$SONAR_TOKEN
 ```
 
@@ -169,7 +175,7 @@ sonar-scanner \
   -Dsonar.organization=statick88 \
   -Dsonar.sources=jarvis_os \
   -Dsonar.tests=tests \
-  -Dsonar.host.url=http://vps.tailb05787.ts.net:9100 \
+  -Dsonar.host.url=http://vps.tailb05787.ts.net:9000 \
   -Dsonar.login=$SONAR_TOKEN \
   -Dsonar.python.coverage.reportPaths=coverage.xml \
   -Dsonar.exclusions=**/tests/**,**/migrations/**,**/alembic/**,**/__pycache__/**,**/__init__.py
@@ -180,14 +186,14 @@ sonar-scanner \
 | Secret | Value | Description |
 |--------|-------|-------------|
 | `SONAR_TOKEN` | `$SONAR_TOKEN` | SonarQube scanner token |
-| `SONAR_HOST_URL` | `http://vps.tailb05787.ts.net:9100` | SonarQube server URL |
+| `SONAR_HOST_URL` | `http://vps.tailb05787.ts.net:9000` | SonarQube server URL |
 
 ## Quality Gate Status Check
 
 ```bash
 # Check Quality Gate status
 curl -s -u admin:SonarQube2026! \
-  "http://vps.tailb05787.ts.net:9100/api/qualitygates/project_status?projectKey=jarvis-os" | jq
+  "http://vps.tailb05787.ts.net:9000/api/qualitygates/project_status?projectKey=jarvis-os" | jq
 ```
 
 Expected response when passing:
@@ -230,7 +236,7 @@ docker run -d --name sonarqube \
 ```
 
 ### Reset Admin Password (Web UI)
-1. Go to `http://vps.tailb05787.ts.net:9100`
+1. Go to `http://vps.tailb05787.ts.net:9000`
 2. Click "Forgot password"
 2. Enter admin email
 3. Follow reset link
@@ -239,19 +245,19 @@ docker run -d --name sonarqube \
 
 ### Health Check
 ```bash
-curl -s http://vps.tailb05787.ts.net:9100/api/system/status | jq
+curl -s http://vps.tailb05787.ts.net:9000/api/system/status | jq
 ```
 
 ### Quality Gate Status
 ```bash
 curl -s -u admin:SonarQube2026! \
-  "http://localhost:9100/api/qualitygates/project_status?projectKey=jarvis-os" | jq
+  "http://localhost:9000/api/qualitygates/project_status?projectKey=jarvis-os" | jq
 ```
 
 ### Project Measures
 ```bash
 curl -s -u admin:SonarQube2026! \
-  "http://localhost:9100/api/measures/component?component=jarvis-os&metricKeys=bugs,vulnerabilities,code_smells,duplicated_lines_density,coverage,ncloc" | jq
+  "http://localhost:9000/api/measures/component?component=jarvis-os&metricKeys=bugs,vulnerabilities,code_smells,duplicated_lines_density,coverage,ncloc" | jq
 ```
 
 ## Next Steps

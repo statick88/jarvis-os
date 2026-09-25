@@ -68,7 +68,7 @@ def _get_voice_client() -> Any:
             from jarvis_os.voice_bridge.orchestrator_client import OrchestratorVoiceClient
             _voice_client = OrchestratorVoiceClient(
                 host="jarvis-voice",
-                port=8180,
+                port=8080,
                 max_sessions=10,
                 idle_timeout_s=300,
             )
@@ -479,5 +479,5 @@ app.include_router(skills_router)
 
 if __name__ == "__main__":
     import os
-    port = int(os.getenv("ORCHESTRATOR_PORT", "3100"))
+    port = int(os.getenv("ORCHESTRATOR_PORT", "3000"))
     uvicorn.run(app, host="0.0.0.0", port=port)

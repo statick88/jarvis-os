@@ -1,123 +1,80 @@
-# Feature: Tailscale-Only Exposure + 81xx Port Scheme
+# Feature: Tailscale-Only Binding (ports deliberately UNCHANGED)
 
-## Objective
-Move JARVIS off privileged/colliding default ports into a dedicated `81xx`/`91xx` segment and bind every
-published service to the Tailscale interface so the stack is reachable only through the mesh.
+## Outcome — superseded decision, recorded honestly
 
-## Problem / Why
-1. **Public exposure.** On the VPS `jarvis-api` (8000) and `sonarqube` (9000) are published on `0.0.0.0`.
-   They are reachable from the internet, not just from the mesh. That contradicts the stated
-   architecture ("mobile consumes API via Tailscale, no public exposure").
-2. **Port collisions.** The VPS already runs `11434` (ollama), `3001` (Next.js), `2377`/`7946` (swarm),
-   `80`/`443` (nginx). Low, well-known defaults invite collisions and make JARVIS indistinguishable
-   in `ss -tlnp` output.
-3. **Latent mismatch.** `ORCHESTRATOR_PORT` defaults to `3000`, but the deployed Next.js runs on `3001`.
-   Already broken; corrected in this change.
+An earlier revision of this document proposed moving JARVIS to a dedicated `81xx`/`91xx` port segment
+**and** binding to the Tailscale interface. The user rejected the port change: it breaks the tailnet ACL,
+mobile clients and every existing consumer of `100.65.184.25:8000`.
 
-### Concept note (binding ≠ port)
-Changing a port number adds **zero** security. Only binding does. Binding published services to the
-Tailscale IP (`100.65.184.25`) or to `127.0.0.1` is the actual control. The port change is justified by
-collision avoidance and legibility, not by security. Postgres/Redis stop being published at all and live
-only on the internal Docker network.
+**Kept:** the Tailscale-only binding. Binding to `100.65.184.25` *is* keeping the Tailscale IP — from the
+mesh the address is still `100.65.184.25:8000`, byte-for-byte what it was. Only public reachability is
+removed.
 
-## Port Mapping (authoritative)
+**Reverted:** all port renumbering. Back to `8000` (api), `8080` (voice), `3000` (orchestrator),
+`9000` (SonarQube), `5432` (Postgres), `6379` (Redis).
 
-| Service | Old | New | Exposure after change |
-|---------|-----|-----|-----------------------|
-| gentle-orchestrator (Next.js) | 3000 | **3100** | `127.0.0.1:3100` |
-| voice-pipeline (STT/TTS) | 8080 | **8180** | internal only |
-| jarvis-api (FastAPI) | 8000 | **8100** | `100.65.184.25:8100` |
-| SonarQube | 9000 | **9100** | `100.65.184.25:9100` |
-| PostgreSQL | 5432 | **5433** | **not published** (Docker network only) |
-| Redis | 6379 | **6380** | **not published** (Docker network only) |
+## Why the port change was wrong
+1. The live tailnet ACL reads `group:servers:443,8000`. Renumbering to 8100 would have denied the mobile
+   client direct access until the policy was edited by hand.
+2. Compose, nginx, Flutter clients, shell scripts, CI and docs all encode these ports. A partial or
+   late update silently breaks the mesh path.
+3. It bought no security. Binding is the control; the number is cosmetic.
 
-## Authorized Scope
-- `jarvis-os` repo: live config, Dockerfiles, scripts, Flutter client, current-facing docs.
-- `jarvis-server/backend` repo: compose, Dockerfile, nginx, config, tests, INFRASTRUCTURE.md.
-- VPS `/opt/jarvis-server/backend` redeploy.
-- Tailscale ACL: `group:mobile → group:servers:443,8000` must become `443,8100`.
+## What actually changed
+- `jarvis-api` published as `100.65.184.25:8000:8000` instead of `0.0.0.0:8000:8000`.
+- `SonarQube` published as `100.65.184.25:9000:9000` instead of `0.0.0.0:9000:9000`.
+- `jarvis-nginx` (compose profile) bound to `100.65.184.25` for `80`/`443`.
+- Postgres and Redis carry an explicit "not published" comment; their ports stay at the upstream defaults
+  with no `command:` override, to avoid diverging from the image.
+- Host nginx upstream moved from `localhost:8000` to `100.65.184.25:8000` in 5 places (the container is no
+  longer on loopback, so `localhost:8000` would not resolve).
+- `coverage.xml` added to `.gitignore` after a generated artifact was committed by mistake.
+- SonarQube admin password rotated off the default; scanner token reissued.
 
-## Out of Scope / Must NOT change
-- **False positives** — do not edit: `spec/contracts/voice_api.proto:150` (sample rates `48000`),
-  `jarvis_os/voice_bridge/models.py:207` (sample rates), `jarvis_ui/macos/Runner.xcodeproj/project.pbxproj`
-  (Xcode UUIDs containing `3000`).
-- `docs/adr/00X-*.md` — accepted decision records, kept as written.
-- Behaviour, routes, and API contracts are unchanged. This is a configuration/binding change only.
-
-## Tasks
-
-- [x] T1. jarvis-os: config defaults (`config.py`, `orchestrator.py`, `opencode_adapter/models.py`, `bffla_idor.py`, voice_bridge client/server)
-- [x] T2. jarvis-os: Docker layer (compose, Dockerfile.gentle, Dockerfile.voice, entrypoint.gentle.sh)
-- [x] T3. jarvis-os: Flutter client (`jarvis_api_service.dart`, `audio_voice_service.dart`, `audio_stream_service.dart`)
-- [x] T4. jarvis-os: scripts (`test_audio_streaming.sh`, `test_jarvis_pipeline.sh`)
-- [x] T5. jarvis-os: docs + properties (`sonar-project.properties`, `SONARQUBE_SETUP.md`, `docs/getting-started.md`, `docs/architecture.md`, `spec/jarvis-os-spec.md`)
-- [x] T6. jarvis-server: compose + Dockerfile + nginx, Tailscale binding, unpublish Postgres/Redis
-- [x] T7. jarvis-server: `config.py`, `http/__init__.py`, `test_config.py`, `INFRASTRUCTURE.md`
-- [ ] T8. Tailscale ACL update `443,8000` → `443,8100` (+ `9100` for the scanner) — **BLOCKED: requires tailnet admin console access**
-- [x] T9. VPS redeploy + health verification
-- [x] T10. Verification: test suites + residue sweep
-
-## Verification Evidence (observed on the VPS)
+## Verification (observed on the VPS)
 
 | Check | Result |
 |---|---|
-| `100.65.184.25:8100/health` | `200` `{"status":"ok",...,"version":"0.1.0"}` |
-| `127.0.0.1:8100` | `000` (not bound to loopback — intended) |
-| public IP `187.124.80.68:8100` | `000` (**was reachable before — this is the fix**) |
-| `ss -tlnp` | `100.65.184.25:8100` only; no `8000` listener remains |
-| Postgres | `pg_isready -p 5433` → accepting connections |
-| Redis | `redis-cli -p 6380 ping` → `PONG` |
-| DB/Redis host exposure | none (internal Docker network only) |
-| SonarQube | `100.65.184.25:9100`, `status: UP`, H2/ES data preserved via `docker commit` |
-| Port 9000 | freed |
-| `nginx -t` | successful (only pre-existing OCSP warning) |
-| HTTPS `jarvis-api.../health` via `443` | `200` from the VPS |
-| `saavedra-construction.com` | still served; 403 originates in the app, not nginx |
+| `100.65.184.25:8000/health` | `200` — Tailscale IP and port identical to before |
+| `127.0.0.1:8000` | `000` — no longer on loopback |
+| public `187.124.80.68:8000` | `000` — **was reachable before; this is the fix** |
+| public `187.124.80.68:9000` | `000` — same fix for SonarQube |
+| `ss -tlnp` | only `100.65.184.25:8000` and `100.65.184.25:9000` |
+| HTTPS `jarvis-api.../health` via `443` | `200` |
+| `nginx -t` | successful (only the pre-existing OCSP warning) |
+| Postgres / Redis | healthy on 5432 / 6379, not published on the host |
 | backend pytest | `56 passed` (`PYTHONPATH=src`) |
-| jarvis-os pytest | `195 passed`, `coverage.xml` produced |
+| jarvis-os pytest | `195 passed` |
 | `python3 -m compileall jarvis_os` | clean |
-| `bash -n` on both scripts | clean |
-| residue sweep (both repos) | clean; only false positives and this document remain |
+| workflow YAML | `sonarqube-server.yml`, `sonarqube-mobile.yml` parse |
 
-## Blockers / decisions pending
-1. **T8 Tailscale ACL.** The live tailnet policy still reads `group:servers:443,8000`. Only this
-   repository's documentation was updated; the policy itself lives in the Tailscale admin console and
-   was not modified. Until it is changed, direct mesh access to `8100`/`9100` is denied. `443` keeps
-   working, so the HTTPS production path is unaffected.
-2. **SonarQube token leaked in git history.** Commit `3ababb5` (already pushed to `main`) contains the
-   scanner token in `sonar-project.properties` and `SONARQUBE_SETUP.md`. Both files were scrubbed in
-   this working tree, but **the token must be rotated** and the history rewritten (or accepted).
-3. **Host nginx still public on 80/443.** Deliberately not rebound, because the same config serves the
-   public `saavedra-construction.com` site. Rebinding to Tailscale-only would take that site offline.
-   Needs an explicit decision.
-4. **Next.js still on 3001 on the VPS** while `ORCHESTRATOR_PORT` now defaults to `3100`. The host nginx
-   `nextjs` upstream still points at `localhost:3001`. Left untouched: it is the public site.
-5. SonarQube scan against `9100` could not be executed from the workstation: Tailscale is not running on
-   the workstation, so all tailnet traffic fails. Not an ACL effect.
+## Findings and mistakes worth keeping
 
-## Progress
-- Port mapping agreed (segment 81xx + Tailscale-only binding).
-- All repository edits applied and verified locally.
-- Backend and SonarQube redeployed on the VPS; security-relevant reachability confirmed.
-- Committed on `fix/tailscale-ports-81xx`; merge and push remain a user decision.
+1. **Leaked credential, self-inflicted.** Commit `3ababb5` (pushed to `main`) contained the SonarQube
+   scanner token in `sonar-project.properties` and `SONARQUBE_SETUP.md`. Both files were scrubbed and the
+   token reissued. It is inert because the SonarQube instance that minted it was destroyed, but the
+   history still carries the string.
+2. **Narrow substitution patterns left 6 stale references.** A residue sweep caught them: a Dart template
+   string, markdown with `**bold**` around the port, and two docstring examples. Always sweep after bulk
+   `perl` substitutions instead of trusting the substitution report.
+3. **`docker compose up` without `--build` reused a stale image**, publishing `8100->8100` while the app
+   listened on 8000 internally, so nothing answered. The mismatched healthcheck is the tell.
+4. **SonarQube had no volumes**, so recreating it destroyed the H2 database. Root cause fixed: named
+   volumes `sonar_data`, `sonar_logs`, `sonar_extensions`, `sonar_temp`.
+5. **SonarQube 9.9.8 rejects `Authorization: Bearer`** for API tokens. The token must be the Basic-auth
+   username (`-Dsonar.login`). This cost several diagnostic rounds and is now documented in
+   `SONARQUBE_SETUP.md` and the CI workflows.
+6. **The public `403` is Cloudflare's, not this VPS.** `saavedra-construction.com` resolves to Cloudflare
+   edge IPs; this nginx answers `301` for the same Host. Confirms the origin is healthy and that
+   Cloudflare reaches it over the public internet — which is why `80`/`443` must stay public here.
+7. **Tailscale was not running on the workstation**, so tailnet timeouts from the Mac are connectivity,
+   not ACL. Do not read them as policy denials.
+8. **`jarvis-server/` is not a git repository.** Its changes are unversioned and cannot be reviewed,
+   rolled back, or CI'd until it is initialised and pushed.
 
-## Acceptance Criteria
-- [ ] No hardcoded `8000|8080|3000|9000|5432|6379` remains in live config (false positives excluded).
-- [ ] `ss -tlnp` on the VPS shows no `0.0.0.0` bind for 8100/9100.
-- [ ] `jarvis-api` health returns 200 via `100.65.184.25:8100` and NOT via the public interface.
-- [ ] Backend unit tests pass with updated config expectations.
-- [ ] Mobile client can reach the API through the mesh (ACL allows 8100).
-
-## Verification commands
-- `cd /Users/statick/dev/jarvis-server/backend && python -m pytest -q`
-- `cd /Users/statick/dev/jarvis-os && python -m compileall -q jarvis_os`
-- `bash -n scripts/test_audio_streaming.sh scripts/test_jarvis_pipeline.sh`
-- `rtk ssh vps "ss -tlnp | grep -E '8100|9100'"`
-- `rtk ssh vps "curl -s http://100.65.184.25:8100/health"`
-
-## Route
-Delegated writer (T1–T7) — 20+ non-trivial files across 2 repos. Production mutation (T8–T9) and
-verification (T10) stay in the orchestrator because they are irreversible and high-consequence.
-
-## Progress
-- Feature document created; port mapping agreed with user (segment 81xx + Tailscale-only binding).
+## Still open
+- `jarvis-server/` needs `git init` and a GitHub remote.
+- `100.65.184.25` is hardcoded in compose. If the tailnet IP changes, the containers fail to bind. A
+  `TAILSCALE_IP` env var with a documented default would remove that coupling.
+- `ORCHESTRATOR_PORT` still defaults to `3000` while the VPS runs Next.js on `3001`. Untouched: the same
+  nginx config serves the public site, so moving it is a separate, explicit decision.

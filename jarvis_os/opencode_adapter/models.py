@@ -99,7 +99,7 @@ class ConnectionConfig(BaseModel):
         description="WebSocket endpoint",
     )
     http_url: str = Field(
-        default="http://host.docker.internal:8180",
+        default="http://host.docker.internal:8080",
         description="HTTP fallback endpoint",
     )
     heartbeat_interval: int = Field(

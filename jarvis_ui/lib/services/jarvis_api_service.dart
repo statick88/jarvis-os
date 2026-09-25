@@ -41,12 +41,12 @@ class JarvisApiService {
     }
   }
 
-  Future<Map<String, dynamic>> getOrchestratorHealth() => _get('/health', _resolveHost('127.0.0.1'), '3100');
-  Future<Map<String, dynamic>> getVoiceHealth() => _get('/health', _resolveHost('127.0.0.1'), '8180');
+  Future<Map<String, dynamic>> getOrchestratorHealth() => _get('/health', _resolveHost('127.0.0.1'), '3000');
+  Future<Map<String, dynamic>> getVoiceHealth() => _get('/health', _resolveHost('127.0.0.1'), '8080');
   Future<Map<String, dynamic>> getFlociHealth() => _get('/_localstack/health', _resolveHost('127.0.0.1'), '4566');
 
   Future<Map<String, dynamic>> postCommand(String prompt) async {
-    final client = _client('http://${_resolveHost("127.0.0.1")}:3100');
+    final client = _client('http://${_resolveHost("127.0.0.1")}:3000');
     int attempt = 0;
     while (true) {
       try {
@@ -66,12 +66,12 @@ class JarvisApiService {
 
   /// Consulta el estado del scheduler nightly.
   Future<Map<String, dynamic>> getNightlyStatus() =>
-      _get('/v1/nightly/scheduler/status', _resolveHost('127.0.0.1'), '3100');
+      _get('/v1/nightly/scheduler/status', _resolveHost('127.0.0.1'), '3000');
 
   /// Activa/desactiva el scheduler nightly. Si action es null, hace toggle.
   Future<Map<String, dynamic>> toggleNightlyScheduler({String? action}) {
     final payload = action != null ? {'action': action} : <String, dynamic>{};
-    return _post('/v1/nightly/scheduler/toggle', payload, _resolveHost('127.0.0.1'), '3100');
+    return _post('/v1/nightly/scheduler/toggle', payload, _resolveHost('127.0.0.1'), '3000');
   }
 
   Future<Map<String, dynamic>> _post(String path, Map<String, dynamic> data, String host, String port) async {

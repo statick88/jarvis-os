@@ -90,7 +90,7 @@ test_websocket_handshake() {
     # Check health endpoint first
     log_info "Verificando /health con websocket_enabled..."
     local health_response
-    health_response=$(curl -sf http://localhost:8180/health 2>/dev/null || echo "")
+    health_response=$(curl -sf http://localhost:8080/health 2>/dev/null || echo "")
     if echo "$health_response" | jq -e '.websocket_enabled == true' >/dev/null 2>&1; then
         log_success "/health reporta websocket_enabled=true"
     else
@@ -107,7 +107,7 @@ import json
 import websockets
 
 async def test_handshake():
-    uri = 'ws://localhost:8180/v1/audio/stream'
+    uri = 'ws://localhost:8080/v1/audio/stream'
     async with websockets.connect(uri) as ws:
         session_id = 'test-session-001'
         await ws.send(json.dumps({
@@ -168,7 +168,7 @@ import time
 import websockets
 
 async def measure_stt_latency():
-    uri = 'ws://localhost:8180/v1/audio/stream'
+    uri = 'ws://localhost:8080/v1/audio/stream'
     latencies = []
     
     for i in range(10):
@@ -249,7 +249,7 @@ import time
 import websockets
 
 async def measure_stt_latency():
-    uri = 'ws://localhost:8180/v1/audio/stream'
+    uri = 'ws://localhost:8080/v1/audio/stream'
     latencies = []
     
     for i in range(10):
@@ -344,7 +344,7 @@ import time
 import websockets
 
 async def measure_tts_ttfb():
-    uri = 'ws://localhost:8180/v1/audio/stream'
+    uri = 'ws://localhost:8080/v1/audio/stream'
     ttfb_times = []
     
     for i in range(10):
@@ -466,7 +466,7 @@ test_rest_fallback() {
     # Test /stt endpoint
     log_info "Verificando POST /stt..."
     local stt_response
-    stt_response=$(curl -sf -X POST http://localhost:8180/stt \
+    stt_response=$(curl -sf -X POST http://localhost:8080/stt \
         -H "Content-Type: application/json" \
         -d '{"audio_data": ""}' 2>/dev/null || echo "")
     if echo "$stt_response" | jq -e '.model == "whisper-base"' >/dev/null 2>&1; then
@@ -479,7 +479,7 @@ test_rest_fallback() {
     # Test /tts endpoint
     log_info "Verificando POST /tts..."
     local tts_response_code
-    tts_response_code=$(curl -sf -o /dev/null -w "%{http_code}" -X POST http://localhost:8180/tts \
+    tts_response_code=$(curl -sf -o /dev/null -w "%{http_code}" -X POST http://localhost:8080/tts \
         -H "Content-Type: application/json" \
         -d '{"text": "hola"}' 2>/dev/null || echo "000")
     if [ "$tts_response_code" = "200" ]; then
@@ -492,7 +492,7 @@ test_rest_fallback() {
     # Test /health includes websocket_enabled
     log_info "Verificando /health incluye websocket_enabled..."
     local health
-    health=$(curl -sf http://localhost:8180/health 2>/dev/null || echo "")
+    health=$(curl -sf http://localhost:8080/health 2>/dev/null || echo "")
     if echo "$health" | jq -e '.websocket_enabled' >/dev/null 2>&1; then
         log_success "/health incluye websocket_enabled=true"
     else
@@ -625,11 +625,11 @@ main() {
     check_binaries || exit 1
 
     # Verificar que voice-pipeline está corriendo
-    log_info "Verificando que voice-pipeline está accesible en localhost:8180..."
-    if curl -sf http://localhost:8180/health >/dev/null 2>&1; then
-        log_success "voice-pipeline accesible en localhost:8180"
+    log_info "Verificando que voice-pipeline está accesible en localhost:8080..."
+    if curl -sf http://localhost:8080/health >/dev/null 2>&1; then
+        log_success "voice-pipeline accesible en localhost:8080"
     else
-        log_fail "voice-pipeline NO accesible en localhost:8180"
+        log_fail "voice-pipeline NO accesible en localhost:8080"
         log_info "Levantando servicios con docker compose..."
         run_compose up -d voice-pipeline || true
         wait_for_voice_health 180 || {

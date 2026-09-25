@@ -140,15 +140,15 @@ USER jarvis
 ENV PYTHONUNBUFFERED=1 \
     NODE_ENV=production \
     LOG_LEVEL=INFO \
-    PORT=3100 \
+    PORT=3000 \
     PYTHONPATH=/app:/app/jarvis_os
 
 # Exponer puerto
-EXPOSE 3100
+EXPOSE 3000
 
 # Healthcheck endpoint (implementado en código)
 HEALTHCHECK --interval=30s --timeout=10s --start-period=20s --retries=3 \
-    CMD curl -f http://localhost:3100/health || exit 1
+    CMD curl -f http://localhost:3000/health || exit 1
 
 WORKDIR /app
 

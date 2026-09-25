@@ -23,11 +23,11 @@ class VoicePipelineSettings(BaseSettings):
 
     # gRPC endpoint
     grpc_host: str = "voice-pipeline"
-    grpc_port: int = 8180
+    grpc_port: int = 8080
 
     # REST fallback endpoint
     rest_host: str = "voice-pipeline"
-    rest_port: int = 8180
+    rest_port: int = 8080
 
     # Default models
     default_stt_model: str = "whisper-base"
