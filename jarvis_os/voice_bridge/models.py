@@ -31,7 +31,11 @@ try:
         WordTimestamp as PbWordTimestamp,
     )
     PB_AVAILABLE = True
-except ImportError:
+except Exception:
+    # Protobuf can fail to import for more than a missing module: a gencode /
+    # runtime version mismatch raises protobuf.runtime_version.VersionError,
+    # which is not an ImportError subclass. The intent here is to degrade
+    # gracefully, so catch broadly rather than letting the whole module fail.
     PB_AVAILABLE = False
 
 

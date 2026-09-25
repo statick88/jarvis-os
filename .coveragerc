@@ -1,0 +1,30 @@
+# Coverage configuration
+#
+# Measured with `pytest --cov=.` from the repository root. The project-root
+# relative paths matter: SonarQube resolves coverage.xml entries from
+# `sonar.projectBaseDir`, so a package-scoped run (`--cov=jarvis_os`) writes
+# paths like `config.py` that SonarQube cannot match against `jarvis_os/config.py`
+# and reports coverage as 0%.
+
+[run]
+branch = True
+source = .
+omit =
+    # Generated protobuf/gRPC stubs — not our source, not meaningfully testable.
+    jarvis_os/voice_bridge/gen/*
+    # Test code is not part of the measured surface.
+    tests/*
+    */__pycache__/*
+    # Flutter / Dart side has no Python.
+    jarvis_ui/*
+
+[report]
+exclude_lines =
+    pragma: no cover
+    if TYPE_CHECKING:
+    raise NotImplementedError
+    @abstractmethod
+show_missing = True
+
+[xml]
+output = coverage.xml
