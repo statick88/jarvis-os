@@ -1,0 +1,271 @@
+# Complete CI/CD Pipeline — Mobile Repository
+# Place in: jarvis-mobile/.github/workflows/ci.yml
+
+name: CI/CD Mobile
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+  workflow_dispatch:
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+  # ============================================================
+  # STATIC ANALYSIS
+  # ============================================================
+  analyze:
+    name: Static Analysis (flutter analyze)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.24'
+          channel: 'stable'
+          cache: true
+      - run: flutter pub get
+      - run: flutter analyze --fatal-infos --fatal-warnings
+
+  # ============================================================
+  # UNIT TESTS
+  # ============================================================
+  unit-tests:
+    name: Unit Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.24'
+          channel: 'stable'
+          cache: true
+      - run: flutter pub get
+      - run: flutter test --coverage --coverage-path=coverage/lcov.info
+      - name: Check coverage threshold
+        run: |
+          # Extract line coverage from lcov.info
+          COVERAGE=$(genhtml coverage/lcov.info --output-directory coverage/html 2>&1 | grep -oP 'lines\s*:\s*\K[\d.]+' | head -1)
+          echo "Coverage: $COVERAGE%"
+          if (( $(echo "$COVERAGE < 80" | bc -l) )); then
+            echo "Coverage $COVERAGE% is below 80% threshold"
+            exit 1
+          fi
+
+  # ============================================================
+  # WIDGET TESTS
+  # ============================================================
+  widget-tests:
+    name: Widget Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.24'
+          channel: 'stable'
+          cache: true
+      - run: flutter pub get
+      - run: flutter test test/widget --coverage --coverage-path=coverage/widget_lcov.info
+
+  # ============================================================
+  # INTEGRATION TESTS (with Tailscale)
+  # ============================================================
+  integration-tests:
+    name: Integration Tests (Patrol + Tailscale)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.24'
+          channel: 'stable'
+          cache: true
+      - name: Start Tailscale
+        uses: tailscale/github-action@v2
+        with:
+          oauth-client-id: ${{ secrets.TAILSCALE_CLIENT_ID }}
+          oauth-secret: ${{ secrets.TAILSCALE_CLIENT_SECRET }}
+          tags: tag:ci-mobile
+      - run: flutter pub get
+      - name: Run integration tests
+        run: |
+          # Tailscale provides MagicDNS resolution to server
+          flutter test integration_test/ -v
+        env:
+          TAILSCALE_SERVE_ADDR: ${{ secrets.TAILSCALE_SERVE_ADDR }}
+
+  # ============================================================
+  # GOLDEN TESTS (Visual Regression)
+  # ============================================================
+  golden-tests:
+    name: Golden Tests (Visual Regression)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.24'
+          channel: 'stable'
+          cache: true
+      - run: flutter pub get
+      - run: flutter test test/golden --update-goldens
+      - name: Upload golden diff on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: golden-diffs
+          path: test/golden/failures/
+
+  # ============================================================
+  # CONTRACT TESTS (Pact Consumer)
+  # ============================================================
+  contract-tests:
+    name: Contract Tests (Pact Consumer)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.24'
+          channel: 'stable'
+          cache: true
+      - run: flutter pub get
+      - run: flutter test test/contract -v
+
+  # ============================================================
+  # SONARQUBE
+  # ============================================================
+  sonarqube:
+    name: SonarQube Quality Gate
+    needs: [analyze, unit-tests, integration-tests]
+    uses: ./.github/workflows/sonarqube-mobile.yml
+    secrets: inherit
+
+  # ============================================================
+  # BUILD ARTIFACTS
+  # ============================================================
+  build-android:
+    name: Build Android (APK + AAB)
+    needs: [analyze, unit-tests, integration-tests, sonarqube]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.24'
+          channel: 'stable'
+          cache: true
+      - run: flutter pub get
+      - run: flutter build apk --release --split-per-abi
+      - run: flutter build appbundle --release
+      - name: Upload Android artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-build
+          path: |
+            build/app/outputs/flutter-apk/*.apk
+            build/app/outputs/bundle/release/*.aab
+
+  build-ios:
+    name: Build iOS (IPA)
+    needs: [analyze, unit-tests, integration-tests, sonarqube]
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.24'
+          channel: 'stable'
+          cache: true
+      - run: flutter pub get
+      - run: flutter build ios --release --no-codesign
+      - name: Create IPA
+        run: |
+          xcodebuild -workspace build/ios/Runner.xcworkspace \
+            -scheme Runner -configuration Release \
+            -archivePath build/ios/Runner.xcarchive \
+            -allowProvisioningUpdates \
+            archive
+          xcodebuild -exportArchive \
+            -archivePath build/ios/Runner.xcarchive \
+            -exportPath build/ios/ipa \
+            -exportOptionsPlist ios/ExportOptions.plist
+      - name: Upload iOS artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-build
+          path: build/ios/ipa/*.ipa
+
+  # ============================================================
+  # DOCKER BUILD (for CI testing)
+  # ============================================================
+  docker-build:
+    name: Build Docker Image
+    needs: [analyze, unit-tests, integration-tests, sonarqube]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      - name: Log in to Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=ref,event=branch
+            type=sha
+      - name: Build and push
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  # ============================================================
+  # RELEASE
+  # ============================================================
+  release:
+    name: Create Release
+    needs: [build-android, build-ios, sonarqube]
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download Android artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: android-build
+          path: artifacts/android
+      - name: Download iOS artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: ios-build
+          path: artifacts/ios
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: |
+            artifacts/android/*.apk
+            artifacts/android/*.aab
+            artifacts/ios/*.ipa
+          generate_release_notes: true

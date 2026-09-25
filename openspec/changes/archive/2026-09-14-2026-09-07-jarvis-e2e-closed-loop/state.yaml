@@ -1,9 +1,10 @@
 id: jarvis-e2e-closed-loop
 title: "E2E Closed-Loop Integration (FASE 11)"
-status: active
-phase: tasks
+status: archived
+phase: archive
 created_at: "2026-09-07"
-updated_at: "2026-09-07"
+updated_at: "2026-09-14"
+archived_at: "2026-09-14T04:28:04Z"
 description: >
   Wire Voice → STT → Orchestrator → Skill → Vault → TTS → Voice as a
   closed loop. Connect existing components (audio streaming, orchestrator
@@ -18,9 +19,9 @@ phases:
   spec: completed
   design: completed
   tasks: completed
-  apply: pending
-  verify: pending
-  archive: pending
+  apply: completed
+  verify: completed
+  archive: completed
 
 dependencies: []
 blockers: []

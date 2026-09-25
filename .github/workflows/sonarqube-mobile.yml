@@ -1,0 +1,79 @@
+# SonarQube Quality Gate — Mobile Repository
+# Place in: jarvis-mobile/.github/workflows/sonarqube.yml
+
+name: SonarQube Quality Gate
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pull-requests: write
+
+env:
+  SONAR_PROJECT_KEY: jarvis-mobile
+  SONAR_ORGANIZATION: statick88
+
+jobs:
+  sonarqube-mobile:
+    name: SonarQube Mobile (Dart/Flutter)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.24'
+          channel: 'stable'
+          cache: true
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Run static analysis
+        run: flutter analyze --fatal-infos
+
+      - name: Run tests with coverage
+        run: |
+          flutter test --coverage --coverage-path=coverage/lcov.info
+
+      - name: Convert coverage to SonarQube format
+        run: |
+          # lcov.info is already compatible
+          ls -la coverage/
+
+      - name: SonarQube Scan
+        uses: SonarSource/sonarqube-scan-action@v4
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        with:
+          args: >
+            -Dsonar.projectKey=${{ env.SONAR_PROJECT_KEY }}
+            -Dsonar.organization=${{ env.SONAR_ORGANIZATION }}
+            -Dsonar.sources=lib
+            -Dsonar.tests=test
+            -Dsonar.dart.file.suffixes=.dart
+            -Dsonar.coverage.reportPaths=coverage/lcov.info
+            -Dsonar.exclusions=**/*.g.dart,**/*.freezed.dart,**/*.gr.dart,**/generated/**
+            -Dsonar.qualitygate.wait=true
+
+  quality-gate:
+    name: Quality Gate Decision
+    needs: [sonarqube-mobile]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check Quality Gate status
+        uses: SonarSource/sonarqube-quality-gate-action@v1
+        timeout-minutes: 5
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        with:
+          scanMetadataReportFile: .sonar/report-task.txt

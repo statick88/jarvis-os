@@ -1,0 +1,116 @@
+# SonarQube Quality Gate — Server Repository
+# Place in: jarvis-server/.github/workflows/sonarqube.yml
+
+name: SonarQube Quality Gate
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pull-requests: write
+
+env:
+  SONAR_PROJECT_KEY: jarvis-server
+  SONAR_ORGANIZATION: statick88
+
+jobs:
+  sonarqube-backend:
+    name: SonarQube Backend (Python)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./backend
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Required for SonarQube analysis
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          pip install -e .[dev]
+          pip install sonar-scanner
+
+      - name: Run tests with coverage
+        run: |
+          pytest --cov=src --cov-report=xml --cov-report=term-missing
+
+      - name: SonarQube Scan
+        uses: SonarSource/sonarqube-scan-action@v4
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        with:
+          args: >
+            -Dsonar.projectKey=${{ env.SONAR_PROJECT_KEY }}-backend
+            -Dsonar.organization=${{ env.SONAR_ORGANIZATION }}
+            -Dsonar.python.coverage.reportPaths=coverage.xml
+            -Dsonar.python.version=3.12
+            -Dsonar.exclusions=**/tests/**,**/migrations/**,**/alembic/**
+            -Dsonar.qualitygate.wait=true
+
+  sonarqube-frontend:
+    name: SonarQube Frontend (TypeScript)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./frontend
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run lint and type-check
+        run: |
+          npm run lint
+          npm run type-check
+
+      - name: Run tests with coverage
+        run: |
+          npm run test:coverage
+
+      - name: SonarQube Scan
+        uses: SonarSource/sonarqube-scan-action@v4
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        with:
+          args: >
+            -Dsonar.projectKey=${{ env.SONAR_PROJECT_KEY }}-frontend
+            -Dsonar.organization=${{ env.SONAR_ORGANIZATION }}
+            -Dsonar.typescript.lcov.reportPaths=coverage/lcov.info
+            -Dsonar.exclusions=**/node_modules/**,**/dist/**,**/*.test.ts,**/*.test.tsx,**/*.spec.ts,**/*.spec.tsx
+            -Dsonar.qualitygate.wait=true
+
+  quality-gate:
+    name: Quality Gate Decision
+    needs: [sonarqube-backend, sonarqube-frontend]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check Quality Gate status
+        uses: SonarSource/sonarqube-quality-gate-action@v1
+        timeout-minutes: 5
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        with:
+          scanMetadataReportFile: .sonar/report-task.txt
+          # Will fail if quality gate fails

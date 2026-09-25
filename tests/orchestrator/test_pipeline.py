@@ -205,7 +205,7 @@ class TestOrchestratorPipelineOpenCodeUnavailable:
 
 
 class TestOrchestratorPipelineTTS:
-    """TTS trigger: asserts voice_client.send_text called."""
+    """TTS trigger: asserts tts_callback called."""
 
     @pytest.fixture
     def pipeline(self):
@@ -218,13 +218,12 @@ class TestOrchestratorPipelineTTS:
         registry = _make_registry([skill])
         loader = _make_loader()
         executor = _make_executor(success=True)
-        voice_client = MagicMock()
-        voice_client.send_text = AsyncMock()
+        tts_callback = AsyncMock()
         return OrchestratorPipeline(
             registry=registry,
             loader=loader,
             executor=executor,
-            voice_client=voice_client,
+            tts_callback=tts_callback,
         )
 
     @pytest.mark.asyncio
@@ -237,9 +236,7 @@ class TestOrchestratorPipelineTTS:
         response = await pipeline.execute(payload)
 
         assert response.status_code == 200
-        pipeline._voice_client.send_text.assert_called_once_with(
-            "session-001", "Nota creada"
-        )
+        pipeline._tts_callback.assert_called_once_with("Nota creada")
 
     @pytest.mark.asyncio
     async def test_tts_not_triggered_without_voice_client(self):
