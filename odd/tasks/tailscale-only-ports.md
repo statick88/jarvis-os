@@ -124,3 +124,55 @@ Coverage must be measured with `--cov=.` rather than `--cov=jarvis_os`: with the
 XML records paths relative to the package (`config.py`), which SonarQube resolves from the project base
 dir (`/usr/src/config.py`) and cannot match, producing `Cannot resolve 68 file paths` and a reported
 coverage of 0 %.
+
+## Test-coverage push #1 — voice_bridge
+
+Commit `6136700`. 158 new tests, suite 195 → 353 passing.
+
+### Result (source only; `tests/`, `jarvis_ui/` and generated `gen/` excluded)
+| Scope | Before | After |
+|---|---|---|
+| `jarvis_os/` overall | 40.01 % | **51.87 %** |
+| `voice_bridge/` (no `gen/`) | ~0 % | **65.17 %** |
+| `voice_bridge/models.py` | 0 % | 99.5 % |
+| `voice_bridge/orchestrator_client.py` | 0 % | 97.3 % |
+| `voice_bridge/server.py` | 0 % | 60.3 % |
+| SonarQube-reported project coverage | 39.7 % | **46.9 %** |
+
+### Honesty correction
+An intermediate reading of 67 % was wrong: it counted the new test files
+themselves, which are ~99 % covered. Excluding `tests/` (added to `.coveragerc`)
+gives the real source figure of 51.87 %.
+
+### Defects fixed on the way
+1. `models.py` guarded the generated stubs with `except ImportError`, but a
+   gencode/runtime mismatch raises protobuf's `VersionError`. Importing the module
+   raised instead of degrading to `PB_AVAILABLE = False`.
+2. `client.py` imported the stubs unguarded, so a protobuf mismatch made the whole
+   `voice_bridge` package unimportable — contradicting the intent documented in
+   `voice_bridge/__init__.py`. It now degrades the gRPC path and logs a warning.
+
+### Protocol inconsistencies found (documented, not changed)
+The Flutter client depends on the current wire shapes, so these are recorded
+rather than altered:
+- Only `SessionAck` carries a `type` discriminator. `SessionClose`, `ErrorMsg`,
+  `AudioChunkMsg`, `STTPartial`, `STTFinal`, `TTSChunk` and `TTSInput` have none,
+  so a client dispatching on `type` cannot classify an error or close frame.
+- A repeated `session_open` on the same id is acknowledged again rather than
+  rejected, so a client bug can silently create two sessions for one id.
+
+### Remaining gaps (uncovered statements)
+| File | Uncovered |
+|---|---|
+| `voice_bridge/client.py` | 201 |
+| `floci_client/client.py` | 197 (blocked: `aioboto3` / `boto3` not installed and not declared anywhere) |
+| `orchestrator.py` | 186 |
+| `opencode_adapter/client.py` | 156 |
+| `voice_bridge/server.py` | 133 (the whisper/piper pipelines and the stt loop) |
+| `skills/handlers/plan.py` | 133 |
+| `skills/devsecops/bffla_idor.py` | 133 |
+| `skills/handlers/metricas.py` | 128 |
+
+98 % is not reachable in one pass; roughly 2 000 further statements need coverage.
+The repo also still has no `requirements.txt`, which is why `aioboto3` is simply
+absent and `floci_client` cannot even be imported.
