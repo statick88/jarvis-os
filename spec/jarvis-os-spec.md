@@ -63,8 +63,8 @@ flowchart TD
 
     subgraph Docker["🐳 DOCKER NETWORK (jarvis-net)"]
         direction TB
-        GO["🧠 gentle-orchestrator\n(Node/Python :3000)"]
-        VP["🎙️ voice-pipeline\n(Whisper.cpp + Piper/Kokoro :8080)"]
+        GO["🧠 gentle-orchestrator\n(Node/Python :3100)"]
+        VP["🎙️ voice-pipeline\n(Whisper.cpp + Piper/Kokoro :8180)"]
         FL["☁️ floci-localstack\n(LocalStack S3+SQS :4566)"]
     end
 

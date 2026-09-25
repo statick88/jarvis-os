@@ -23,13 +23,13 @@ jarvis-os utiliza una arquitectura híbrida donde el host macOS M5 ejecuta conte
 
 - **Imagen base**: Alpine Linux + Node.js 20 + Python 3.12
 - **Función**: Coordina skills, vault, health checks y adaptadores externos.
-- **Puerto interno**: 3000/tcp
+- **Puerto interno**: 3100/tcp
 
 ### Voice Pipeline
 
 - **Imagen base**: Ubuntu 24.04
 - **Función**: Servidor STT/TTS ligero para healthchecks y pruebas.
-- **Puerto interno**: 8080/tcp
+- **Puerto interno**: 8180/tcp
 
 ### Floci/LocalStack
 

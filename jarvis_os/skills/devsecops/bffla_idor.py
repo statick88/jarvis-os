@@ -305,7 +305,7 @@ class BfflaIdorSkill(BaseSkill):
 
     @staticmethod
     def _base_url() -> str:
-        return os.environ.get("BFLA_IDOR_BASE_URL", "http://127.0.0.1:3000").rstrip("/")
+        return os.environ.get("BFLA_IDOR_BASE_URL", "http://127.0.0.1:3100").rstrip("/")
 
     @staticmethod
     def _role_token(role: str) -> str:

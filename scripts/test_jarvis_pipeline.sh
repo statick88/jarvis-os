@@ -188,7 +188,7 @@ test_voice_pipeline_api() {
     # Health check directo
     log_info "Probando /health endpoint..."
     local health_response
-    health_response=$(curl -sf http://localhost:8080/health 2>/dev/null || echo "")
+    health_response=$(curl -sf http://localhost:8180/health 2>/dev/null || echo "")
     if echo "$health_response" | jq -e '.status == "ok" or .healthy == true' >/dev/null 2>&1; then
         log_success "Voice Pipeline /health OK: $health_response"
     else
@@ -199,7 +199,7 @@ test_voice_pipeline_api() {
     # Listar modelos
     log_info "Probando /v1/models endpoint..."
     local models_response
-    models_response=$(curl -sf --max-time 20 http://localhost:8080/v1/models 2>/dev/null || echo "")
+    models_response=$(curl -sf --max-time 20 http://localhost:8180/v1/models 2>/dev/null || echo "")
     if echo "$models_response" | jq -e '.models | length > 0' >/dev/null 2>&1; then
         log_success "Voice Pipeline /v1/models OK: $(echo "$models_response" | jq '.models | length') models"
         [ "$VERBOSE" = true ] && echo "$models_response" | jq .
@@ -284,7 +284,7 @@ test_stt_tts_binaries() {
 test_skills_api() {
     log_step "TEST 3B: Skills API Coverage"
 
-    local base="http://localhost:3000"
+    local base="http://localhost:3100"
 
     # List skills
     log_info "Probando GET /api/v1/skills..."
@@ -339,7 +339,7 @@ test_skills_api() {
 test_skills_api_path_traversal() {
     log_step "TEST 3C: Skills API — Path Traversal Rejection"
 
-    local base="http://localhost:3000"
+    local base="http://localhost:3100"
 
     # Attempt path traversal via obsidian create_note (must be rejected)
     log_info "Probando path traversal: ../../etc/passwd..."
@@ -384,7 +384,7 @@ test_skills_api_path_traversal() {
 test_skills_api_operation_routing() {
     log_step "TEST 3D: Skills API — Operation Routing"
 
-    local base="http://localhost:3000"
+    local base="http://localhost:3100"
 
     # Verify that operation=create_note is forwarded to the handler
     # (not silently treated as search_vault)

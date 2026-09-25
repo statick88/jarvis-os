@@ -29,7 +29,7 @@ class AudioVoiceService {
       final formData = FormData.fromMap({
         'file': await MultipartFile.fromFile(audioFile.path, filename: 'input.wav'),
       });
-      final response = await _dio.post('${_resolveHost()}:8080/stt', data: formData);
+      final response = await _dio.post('${_resolveHost()}:8180/stt', data: formData);
       return response.data['text'] ?? '';
     } catch (e) {
       return 'Error STT: $e';
@@ -38,7 +38,7 @@ class AudioVoiceService {
 
   Future<void> speak(String text) async {
     try {
-      final response = await _dio.post('${_resolveHost()}:8080/tts', data: {'text': text});
+      final response = await _dio.post('${_resolveHost()}:8180/tts', data: {'text': text});
       final bytes = Uint8List.fromList(response.data['audio'] ?? []);
       if (bytes.isNotEmpty) {
         await _player.play(BytesSource(bytes));

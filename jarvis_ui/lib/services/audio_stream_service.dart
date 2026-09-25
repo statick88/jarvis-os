@@ -185,7 +185,7 @@ class AudioStreamService {
 
   AudioStreamService({
     this.host = '127.0.0.1',
-    this.port = 8080,
+    this.port = 8180,
     this.bufferMs = 500,
     this.token = '',
   }) : _ringBuffer = CircularAudioBuffer(bufferMs: bufferMs);

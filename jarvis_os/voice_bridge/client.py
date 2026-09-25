@@ -323,7 +323,7 @@ class JarvisVoiceBridgeWS:
 
     Usage::
 
-        ws = JarvisVoiceBridgeWS(host="localhost", port=8080)
+        ws = JarvisVoiceBridgeWS(host="localhost", port=8180)
         await ws.connect()
         ws.send_audio(pcm_bytes, session_id="...")
         ws.send_text("Hola", session_id="...")
@@ -335,7 +335,7 @@ class JarvisVoiceBridgeWS:
     def __init__(
         self,
         host: str = "localhost",
-        port: int = 8080,
+        port: int = 8180,
         max_retries: int = 5,
         backoff_base: float = 1.0,
         backoff_max: float = 30.0,

@@ -6,7 +6,7 @@ and lifecycle management. Each session in the pool maps to one active
 
 Usage::
 
-    async with OrchestratorVoiceClient(host="localhost", port=8080) as client:
+    async with OrchestratorVoiceClient(host="localhost", port=8180) as client:
         ack = await client.open_session("session-001")
         await client.send_audio("session-001", pcm_bytes)
         await client.send_text("session-001", "Hola mundo")
@@ -62,7 +62,7 @@ class OrchestratorVoiceClient:
     def __init__(
         self,
         host: str = "localhost",
-        port: int = 8080,
+        port: int = 8180,
         max_sessions: int = _DEFAULT_MAX_SESSIONS,
         idle_timeout_s: int = _DEFAULT_IDLE_TIMEOUT_S,
         token: Optional[str] = None,

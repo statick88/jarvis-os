@@ -86,7 +86,7 @@ log_info "Verificando conectividad con dependencias..."
 wait_for_http "http://floci-localstack:4566/_localstack/health" "Floci/LocalStack" 20 || true
 
 # Voice Pipeline
-wait_for_http "http://voice-pipeline:8080/health" "Voice Pipeline" 30 || true
+wait_for_http "http://voice-pipeline:8180/health" "Voice Pipeline" 30 || true
 
 # Host OpenCode/Kilo (opcional - solo warning si no están)
 if nc -z host.docker.internal 8081 2>/dev/null; then
