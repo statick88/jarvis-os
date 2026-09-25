@@ -47,7 +47,7 @@ jobs:
           python-version: '3.12'
           cache: 'pip'
       - run: pip install -e .[dev]
-      - run: pytest tests/unit -v --cov=src --cov-report=xml --cov-fail-under=80
+      - run: pytest tests/ -v --cov=. --cov-report=xml --cov-fail-under=80
 
   backend-integration-tests:
     name: Backend Integration Tests
@@ -82,7 +82,7 @@ jobs:
       - run: alembic upgrade head
         env:
           DATABASE_URL: postgresql://jarvis:jarvis@localhost:5432/jarvis_test
-      - run: pytest tests/integration -v --cov=src --cov-report=xml --cov-fail-under=60
+      - run: pytest tests/ -v --cov=. --cov-report=xml --cov-fail-under=80
 
   backend-contract-tests:
     name: Backend Contract Tests (Pact)
@@ -97,7 +97,7 @@ jobs:
           python-version: '3.12'
           cache: 'pip'
       - run: pip install -e .[dev] pact-python
-      - run: pytest tests/contract -v
+      - run: pytest tests/ -v
 
   # ============================================================
   # FRONTEND CI

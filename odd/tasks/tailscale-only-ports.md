@@ -78,3 +78,49 @@ removed.
   `TAILSCALE_IP` env var with a documented default would remove that coupling.
 - `ORCHESTRATOR_PORT` still defaults to `3000` while the VPS runs Next.js on `3001`. Untouched: the same
   nginx config serves the public site, so moving it is a separate, explicit decision.
+
+## Measured quality baseline (VPS SonarQube 9.9.8, 2026-09-25)
+
+### SAST — `jarvis-os`
+| Metric | Value |
+|---|---|
+| Bugs | 0 |
+| Vulnerabilities | 0 |
+| Security hotspots | 7 (unreviewed) |
+| Code smells | 92 |
+| Coverage | **39.7 %** |
+| Duplicated lines | 0.7 % |
+| NCLOC | 8 614 |
+| Security / Reliability / Maintainability rating | A / A / A |
+
+Scanner: `sonarsource/sonar-scanner-cli:latest` in Docker against `100.65.184.25:9000`, token passed as
+`-Dsonar.login`. Verified the CE task reached `SUCCESS` and the project exists before trusting any metric —
+an earlier scan had reported `ANALYSIS SUCCESSFUL` while never being stored.
+
+### DAST — OWASP ZAP baseline (SonarQube has no DAST engine)
+| Risk | Count | Finding |
+|---|---|---|
+| High | 0 | — |
+| Medium | 0 | — |
+| Low | 2 | `Cross-Origin-Resource-Policy` missing, `X-Content-Type-Options` missing |
+| Informational | 1 | Storable and cacheable content on `/` |
+
+**Scope caveat:** only 5 URLs were reached. The API requires JWT auth, so ZAP only exercised the
+unauthenticated surface (`/openapi.json`, `/health`, `/docs`). This is not a full authenticated DAST.
+Reports: `/opt/jarvis-scan/zap/zap-report.{html,json}` on the VPS.
+
+### Coverage is 39.7 %, not >98 %
+The previously reported 98.85 % belonged to the `jarvis-server/backend` repository, not to `jarvis-os`.
+Largest uncovered areas in `jarvis_os` (0 % each): `voice_bridge/server.py` (335 stmts), `voice_bridge/client.py`
+(277), `voice_bridge/models.py` (210), `floci_client/client.py` (197), `voice_bridge/orchestrator_client.py` (147).
+
+### CI was never actually running these tests
+`ci-server.yml` invoked `pytest tests/unit`, `pytest tests/integration` and `pytest tests/contract` with
+`--cov=src`. None of those paths exist: the package is `jarvis_os/` and the tests live in `tests/`. Every
+one of those steps would have errored on collection, so the coverage gate and the "Quality Gate PASSED"
+claims were never backed by a real run. Paths corrected to `pytest tests/ --cov=.`.
+
+Coverage must be measured with `--cov=.` rather than `--cov=jarvis_os`: with the package-scoped form the
+XML records paths relative to the package (`config.py`), which SonarQube resolves from the project base
+dir (`/usr/src/config.py`) and cannot match, producing `Cannot resolve 68 file paths` and a reported
+coverage of 0 %.
