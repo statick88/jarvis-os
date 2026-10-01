@@ -1,0 +1,87 @@
+# Static analysis for jarvis-os.
+#
+# Replaces the previous sonarqube-server.yml and sonarqube-mobile.yml. Both were
+# written for repositories that do not exist (jarvis-server, jarvis-mobile) and
+# referenced ./backend, ./frontend and a Node/TypeScript toolchain that this
+# repository has never had. Everything here is verified against the real layout:
+# jarvis_os/ for sources, tests/ for tests, jarvis_ui/ is Flutter and out of
+# scope.
+#
+# sonar-project.properties is the single source of truth for every analysis
+# property. This workflow passes only the host and the credential. The earlier
+# workflow duplicated every -Dsonar.* flag inline, which meant the properties
+# file and the workflow could disagree with no indication of which one won.
+
+name: Analysis
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: analysis-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  sast:
+    name: SAST (SonarQube)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Full history so blame-based rules and last-new-code have data.
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt -r requirements-dev.txt
+
+      - name: Run tests with coverage
+        # The XML must be regenerated here, never reused from a previous run.
+        # A stale coverage.xml is not cosmetic: SonarQube aborts the whole
+        # analysis with "Line N is out of range in the file X" when a line it
+        # references no longer exists, which is exactly what happened when a
+        # report from before a deletion was reused.
+        run: |
+          pytest tests/ --cov=jarvis_os --cov-report=xml --cov-report=term-missing
+
+      - name: SonarQube scan
+        # Pinned to v6.0.0, not floating on @main or @v4.
+        # CVE-2025-58178 (GHSA-f79p-9c5r-xg88, CVSS 3.1 7.8): args are treated as
+        #   shell expressions; fixed in v5.3.1.
+        # CVE-2025-59844 (GHSA-5xq9-5g24-4g6f): argument injection on Windows
+        #   runners, bypassing the earlier fix; fixed in v6.0.0.
+        # Bumping below v6.0.0 reintroduces both.
+        uses: SonarSource/sonarqube-scan-action@v6.0.0
+        env:
+          # SonarQube Server 9.9 rejects "Authorization: Bearer" and answers 401,
+          # so the token must travel as the Basic-auth username. The env var is
+          # named SONAR_LOGIN rather than SONAR_TOKEN to make that visible;
+          # renaming it back would look like a fix and silently break the scan.
+          SONAR_LOGIN: ${{ secrets.SONAR_TOKEN }}
+          SONAR_HOST_URL: ${{ vars.SONAR_HOST_URL }}
+        with:
+          # Only the credential is passed here. Every analysis property comes
+          # from sonar-project.properties so there is a single source of truth.
+          args: >
+            -Dsonar.login=${{ env.SONAR_LOGIN }}
+
+      - name: Enforce quality gate
+        uses: SonarSource/sonarqube-quality-gate-action@v1
+        timeout-minutes: 5
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        with:
+          scanMetadataReportFile: .sonar/report-task.txt
