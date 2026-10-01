@@ -27,6 +27,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from jarvis_os.odd_receipts import record_execution
 from jarvis_os.skills.models import (
     ExecutionStatus,
     ExecutionType,
@@ -115,6 +116,9 @@ class SkillExecutor:
             or self.default_timeout
         )
         started = _utcnow()
+        # Monotonic reading, used only as a fallback when the result carries no
+        # duration. Immune to wall-clock adjustments during a long run.
+        started_monotonic = time.monotonic()
         try:
             if execution_type == ExecutionType.PYTHON:
                 result = await self._run_python(skill, input_data, entrypoint, effective_timeout)
@@ -130,6 +134,17 @@ class SkillExecutor:
             result = self._failed(skill, str(exc), started, status=ExecutionStatus.TIMEOUT)
         except SkillExecutionError as exc:
             result = self._failed(skill, str(exc), started)
+
+        # RDD: emit one receipt per run. This is the single return point of
+        # execute(), so every outcome (success, failure, timeout, unsupported
+        # execution type) is covered. record_execution never raises.
+        record_execution(
+            skill_id=skill.id,
+            tool_version=getattr(skill.frontmatter, "version", None),
+            input_data=input_data,
+            result=result,
+            started=started_monotonic,
+        )
         return result
 
     async def execute_with_timeout(

@@ -1,0 +1,39 @@
+# jarvis-os runtime dependencies
+#
+# Discovered by scanning every top-level (unguarded) import in jarvis_os/**.py
+# and resolving each module to its installed distribution version. There was no
+# dependency declaration in this repository before, which is why an environment
+# could not even import jarvis_os.floci_client.
+#
+# Install:  pip install -r requirements.txt
+#
+# protobuf note: jarvis_os/voice_bridge/gen/voice_api_pb2.py is generated code
+# that calls ValidateProtobufRuntimeVersion(..., 7, 35, 1, ...). It REQUIRES a
+# protobuf runtime >= 7.35.1. A runtime older than that raises
+# protobuf.runtime_version.VersionError at import. This constraint reflects the
+# committed gencode, not a preference. If your environment has an older
+# protobuf, either upgrade it or regenerate the stubs from
+# spec/contracts/voice_api.proto with a matching protoc.
+
+# --- web / API ---
+fastapi==0.135.1
+uvicorn==0.41.0
+python-multipart>=0.0.9
+
+# --- data validation ---
+pydantic==2.12.5
+pydantic-settings==2.13.1
+
+# --- voice bridge: gRPC + WebSocket ---
+grpcio==1.78.0
+protobuf>=7.35.1,<8
+websockets==17.1
+
+# --- AWS / Floci (unguarded imports; jarvis_os.floci_client fails without them) ---
+aioboto3==15.5.0
+botocore==1.43.73
+aiohttp==3.13.5
+
+# --- system / config ---
+psutil==7.2.2
+PyYAML==6.0.3
