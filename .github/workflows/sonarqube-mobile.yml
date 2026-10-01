@@ -51,7 +51,18 @@ jobs:
           ls -la coverage/
 
       - name: SonarQube Scan
-        uses: SonarSource/sonarqube-scan-action@v4
+      # Pinned to v6.0.0, not floating on @main/@v4.
+      # CVE-2025-58178 (GHSA-f79p-9c5r-xg88, CVSS 7.8): args are treated as
+      #   shell expressions; fixed in v5.3.1.
+      # CVE-2025-59844 (GHSA-5xq9-5g24-4g6f): argument injection on Windows
+      #   runners, bypassing the earlier fix; fixed in v6.0.0.
+      # Bumping to a version below v6.0.0 reintroduces both.
+      #
+      # SONAR_LOGIN rather than SONAR_TOKEN: SonarQube Server 9.9 rejects
+      # "Authorization: Bearer" and answers 401, so the token must travel as the
+      # Basic-auth username, i.e. -Dsonar.login. The value comes from a GitHub
+      # secret, so it is masked in logs.
+        uses: SonarSource/sonarqube-scan-action@v6.0.0
         env:
           # SonarQube 9.9 rejects "Authorization: Bearer"; the token must be sent as
           # the Basic-auth username, i.e. -Dsonar.login, not -Dsonar.token.
