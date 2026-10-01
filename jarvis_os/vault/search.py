@@ -168,20 +168,51 @@ class VaultSearch:
 
     @staticmethod
     def _snippet(content: str, terms: list[str], window: int = 100) -> str:
+        """Return a window of ``content`` centred on its densest cluster of hits.
+
+        The previous implementation computed ``max(best_pos, idx)`` over every
+        occurrence, so the snippet was anchored to the *last* match in the
+        document rather than the most relevant region, and a local variable
+        intended to track the hit count was initialised and never updated.
+
+        A sliding window over the sorted hit positions gives the region with the
+        most matches in O(n) after the sort, and ties resolve to the earliest
+        position so the output is deterministic.
+        """
         lower = content.lower()
-        best_pos = 0
-        best_count = -1
+        hits: list[int] = []
         for term in terms:
+            needle = term.lower()
+            if not needle:
+                continue
             pos = 0
             while True:
-                idx = lower.find(term, pos)
+                idx = lower.find(needle, pos)
                 if idx == -1:
                     break
-                best_pos = max(best_pos, idx)
+                hits.append(idx)
                 pos = idx + 1
 
-        start = max(0, best_pos - window)
-        end = min(len(content), best_pos + window)
+        if not hits:
+            return content[:window]
+
+        hits.sort()
+        best_start = hits[0]
+        best_count = 0
+        left = 0
+        for right, position in enumerate(hits):
+            # Shrink from the left until every hit in [position - window,
+            # position] is inside the window anchored at `position`.
+            while hits[left] < position - window:
+                left += 1
+            count = right - left + 1
+            if count > best_count:
+                best_count = count
+                best_start = position
+
+        start = max(0, best_start - window // 2)
+        end = min(len(content), start + window)
+        start = max(0, end - window)
         snippet = content[start:end]
         if start > 0:
             snippet = "..." + snippet

@@ -184,9 +184,10 @@ class TestSessionDeferral:
         s.add_task(lambda: _counting(counter), interval_minutes=0, task_id="c")
         s.set_session_active(True)
         s.start()
-        await asyncio.sleep(0.2)
+        # Bounded wait: several tick intervals, so a broken guard would show.
+        await asyncio.sleep(0.3)
         s.stop()
-        assert counter == []  # task never ran
+        assert counter == [], "task ran despite an active session"
 
     @pytest.mark.asyncio
     async def test_session_inactive_runs_tick(self) -> None:
@@ -195,9 +196,11 @@ class TestSessionDeferral:
         s.add_task(lambda: _counting(counter), interval_minutes=0, task_id="c")
         s.set_session_active(False)
         s.start()
-        await asyncio.sleep(0.2)
+        # Poll the condition instead of sleeping a fixed 0.2 s: against a
+        # 0.05 s tick that is not enough headroom on a loaded machine.
+        assert await _wait_until(lambda: len(counter) >= 1), "task never ran"
         s.stop()
-        assert len(counter) >= 1  # task ran at least once
+
 
 
 # ── Active hours window ─────────────────────────────────────────────
@@ -212,7 +215,7 @@ class TestActiveHoursWindow:
         counter: list[int] = []
         s.add_task(lambda: _counting(counter), interval_minutes=0, task_id="c")
         s.start()
-        await asyncio.sleep(0.2)
+        await asyncio.sleep(0.3)
         s.stop()
         # If current hour is 2 or 3, task ran; otherwise it didn't.
         # We can't control the clock, so just assert no crash.
@@ -225,9 +228,9 @@ class TestActiveHoursWindow:
         counter: list[int] = []
         s.add_task(lambda: _counting(counter), interval_minutes=0, task_id="c")
         s.start()
-        await asyncio.sleep(0.2)
-        s.stop()
-        assert len(counter) >= 1
+        assert await _wait_until(lambda: len(counter) >= 1), "task never ran"
+
+
 
 
 # ── Resource throttling ──────────────────────────────────────────────
@@ -244,9 +247,9 @@ class TestResourceThrottling:
         fake_snapshot = ResourceSnapshot(cpu_percent=99.0, ram_mb=10.0)
         with patch.object(s, "_get_resources", new=AsyncMock(return_value=fake_snapshot)):
             s.start()
-            await asyncio.sleep(0.2)
+            await asyncio.sleep(0.3)
             s.stop()
-        assert counter == []
+        assert counter == [], "task ran despite the CPU threshold"
 
     @pytest.mark.asyncio
     async def test_high_ram_skips_tick(self) -> None:
@@ -257,9 +260,9 @@ class TestResourceThrottling:
         fake_snapshot = ResourceSnapshot(cpu_percent=1.0, ram_mb=9999.0)
         with patch.object(s, "_get_resources", new=AsyncMock(return_value=fake_snapshot)):
             s.start()
-            await asyncio.sleep(0.2)
+            await asyncio.sleep(0.3)
             s.stop()
-        assert counter == []
+        assert counter == [], "task ran despite the RAM threshold"
 
 
 # ── Task execution ───────────────────────────────────────────────────

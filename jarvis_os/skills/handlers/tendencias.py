@@ -8,7 +8,8 @@ Usage::
 from __future__ import annotations
 
 import logging
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
+from email.utils import parsedate_to_datetime
 from pathlib import Path
 from typing import Any
 
@@ -46,15 +47,21 @@ def run(input_data: dict[str, Any]) -> dict[str, Any]:
 
 
 def _fetch(input_data: dict[str, Any], vault_path: Path) -> dict[str, Any]:
-    hours_back = int(input_data.get("hours_back", 24))
     max_items = int(input_data.get("max_items_per_feed", 20))
     keywords = [k.lower() for k in input_data.get("keywords", [])]
     min_score = float(input_data.get("min_relevance_score", 0.3))
     enqueue = input_data.get("enqueue_async", True)
 
     feeds = input_data.get("feed_urls") or _default_feeds()
+    # hours_back is declared in .skills/tendencias.md (min 1, max 168, default
+    # 24) but was never applied: every item of every age was processed. Clamp
+    # to the documented range so a bad value cannot disable the window.
+    hours_back = max(1, min(int(input_data.get("hours_back", 24)), 168))
+    cutoff = datetime.now(timezone.utc) - timedelta(hours=hours_back)
     fetched = 0
     relevant = 0
+    skipped_stale = 0
+    items_undated = 0
     feeds_processed = []
     raw_items = []
 
@@ -76,12 +83,20 @@ def _fetch(input_data: dict[str, Any], vault_path: Path) -> dict[str, Any]:
                 data = resp.read().decode("utf-8", errors="replace")
             root = ET.fromstring(data)
             items = _parse_feed_items(root)
-            for item in items[:max_items]:
+            # Age-filter before applying max_items_per_feed. Slicing first would
+            # let stale items consume the budget and push fresh ones out, so
+            # max_items would silently mean "first N regardless of age".
+            fresh = [item for item in items if _is_within_window(item, cutoff)]
+            skipped_stale += len(items) - len(fresh)
+            items_undated += sum(
+                1 for item in fresh if _parse_published(str(item.get("published", ""))) is None
+            )
+            for item in fresh[:max_items]:
                 score = _relevance(item, keywords)
                 if score >= min_score:
                     items_relevant += 1
                     raw_items.append({**item, "score": score, "feed_title": title})
-            items_fetched = len(items)
+            items_fetched = len(fresh)
             fetched += items_fetched
             relevant += items_relevant
         except Exception as exc:
@@ -126,6 +141,11 @@ def _fetch(input_data: dict[str, Any], vault_path: Path) -> dict[str, Any]:
             "enqueued_count": relevant if enqueue else 0,
             "feeds_processed": feeds_processed,
             "top_topics": _top_topics(raw_items),
+            # Surfaced so an ignored window is visible in the receipt instead of
+            # being invisible: a caller asking for 24h can see what came back.
+            "hours_back": hours_back,
+            "skipped_stale_count": skipped_stale,
+            "undated_count": items_undated,
         },
         "sqs_events": sqs_events,
     }
@@ -178,7 +198,6 @@ def _default_feeds() -> list[str]:
 
 def _parse_feed_items(root: Any) -> list[dict[str, Any]]:
     items = []
-    ns = {"atom": "http://www.w3.org/2005/Atom", "content": "http://purl.org/rss/1.0/modules/content/"}
     for item in root.iter("item"):
         title = _text(item, "title")
         link = _text(item, "link")
@@ -198,6 +217,51 @@ def _parse_feed_items(root: Any) -> list[dict[str, Any]]:
 def _text(parent: Any, tag: str) -> str:
     el = parent.find(tag)
     return (el.text or "").strip() if el is not None else ""
+
+
+def _parse_published(raw: str) -> datetime | None:
+    """Best-effort parse of a feed timestamp into an aware UTC datetime.
+
+    RSS uses RFC 822 (``Tue, 01 Oct 2026 10:00:00 GMT``) and Atom uses RFC 3339
+    (``2026-10-01T10:00:00Z``). Feeds in the wild are inconsistent: some omit the
+    timezone, some use a named zone other than UTC, some are plain text.
+
+    Returns ``None`` when the value cannot be parsed, which the caller treats as
+    "unknown age" and keeps. Dropping undated items would silently empty a feed
+    that is perfectly readable, which is worse than honouring the window only
+    where the feed told us the date.
+    """
+    if not raw:
+        return None
+    text = raw.strip()
+
+    # RFC 822 / RFC 2822, the RSS default.
+    try:
+        parsed = parsedate_to_datetime(text)
+    except (TypeError, ValueError, IndexError):
+        parsed = None
+    if parsed is not None:
+        if parsed.tzinfo is None:
+            return parsed.replace(tzinfo=timezone.utc)
+        return parsed.astimezone(timezone.utc)
+
+    # RFC 3339 / ISO 8601, the Atom default. Python 3.11+ handles "Z" natively.
+    candidate = text[:-1] + "+00:00" if text.endswith(("Z", "z")) else text
+    try:
+        parsed = datetime.fromisoformat(candidate)
+    except ValueError:
+        return None
+    if parsed.tzinfo is None:
+        return parsed.replace(tzinfo=timezone.utc)
+    return parsed.astimezone(timezone.utc)
+
+
+def _is_within_window(item: dict[str, Any], cutoff: datetime) -> bool:
+    """True when the item is inside the window, or when its age is unknown."""
+    published = _parse_published(str(item.get("published", "")))
+    if published is None:
+        return True
+    return published >= cutoff
 
 
 def _relevance(item: dict[str, Any], keywords: list[str]) -> float:
