@@ -17,7 +17,6 @@ import logging
 import shutil
 from collections import deque
 from dataclasses import dataclass
-from typing import Deque, Optional
 
 import psutil
 
@@ -76,7 +75,7 @@ _LIGHT_PALETTE = _Palette(
 class JarvisTUI:
     """Async terminal dashboard for JARVIS-OS runtime state."""
 
-    def __init__(self, config: Optional[HudConfig] = None) -> None:
+    def __init__(self, config: HudConfig | None = None) -> None:
         self._config = config or HudConfig()
         self._palette = (
             _DARK_PALETTE if self._config.tui_theme == "dark" else _LIGHT_PALETTE
@@ -84,9 +83,9 @@ class JarvisTUI:
         self._latest: HudMessage = HudMessage(
             status=HudStatus.IDLE, summary="Waiting for activity...", payload={}
         )
-        self._feed: Deque[HudMessage] = deque(maxlen=20)
+        self._feed: deque[HudMessage] = deque(maxlen=20)
         self._running = False
-        self._render_task: Optional[asyncio.Task] = None
+        self._render_task: asyncio.Task | None = None
         self._last_render = ""
 
     # -- lifecycle ----------------------------------------------------------
@@ -128,7 +127,7 @@ class JarvisTUI:
         summary: str = "",
         *,
         severity: str = "info",
-        payload: Optional[dict] = None,
+        payload: dict | None = None,
     ) -> HudMessage:
         """Convenience builder: publish a status update, return the message."""
         message = HudMessage(

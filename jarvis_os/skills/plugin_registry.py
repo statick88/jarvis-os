@@ -19,7 +19,7 @@ import sys
 from pathlib import Path
 from typing import Any
 
-from jarvis_os.skills.base import BaseSkill, SkillPermission
+from jarvis_os.skills.base import BaseSkill
 
 logger = logging.getLogger(__name__)
 

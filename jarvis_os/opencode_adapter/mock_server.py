@@ -14,7 +14,7 @@ from typing import Any
 from uuid import uuid4
 
 import websockets
-from websockets.server import serve, WebSocketServerProtocol
+from websockets.server import WebSocketServerProtocol, serve
 
 from jarvis_os.opencode_adapter.models import Envelope, MessageType
 from jarvis_os.opencode_adapter.protocol import (

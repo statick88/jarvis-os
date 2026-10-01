@@ -18,23 +18,19 @@ import time
 import uuid
 from collections import defaultdict
 from datetime import datetime, timezone
-from typing import Any, Optional
+from typing import Any
 
+import uvicorn
 from fastapi import FastAPI, Response, WebSocket, WebSocketDisconnect
 from fastapi.responses import JSONResponse
-import uvicorn
 
 from jarvis_os.voice_bridge.models import (
-    AudioChunkMsg,
     ErrorMsg,
-    HealthResponse,
     SessionAck,
     SessionClose,
-    SessionOpen,
     STTFinal,
     STTPartial,
     TTSChunk,
-    TTSInput,
 )
 
 logger = logging.getLogger(__name__)
@@ -63,7 +59,7 @@ class SessionManager:
     def __init__(self, idle_timeout_s: int = SESSION_IDLE_TIMEOUT_S) -> None:
         self._idle_timeout_s = idle_timeout_s
         self._sessions: dict[str, dict[str, Any]] = {}
-        self._cleanup_task: Optional[asyncio.Task] = None
+        self._cleanup_task: asyncio.Task | None = None
 
     def start_cleanup_loop(self) -> None:
         """Start background task that cleans expired sessions."""
@@ -111,7 +107,7 @@ class SessionManager:
         self._sessions.pop(session_id, None)
         logger.info("Session removed: %s (total: %d)", session_id, len(self._sessions))
 
-    def get(self, session_id: str) -> Optional[dict[str, Any]]:
+    def get(self, session_id: str) -> dict[str, Any] | None:
         return self._sessions.get(session_id)
 
     def active_count(self) -> int:
@@ -135,10 +131,10 @@ class WhisperSTTPipeline:
     def __init__(self, model: str = WHISPER_MODEL, language: str = WHISPER_LANGUAGE) -> None:
         self._model = model
         self._language = language
-        self._process: Optional[asyncio.subprocess.Process] = None
-        self._stdin: Optional[asyncio.StreamWriter] = None
+        self._process: asyncio.subprocess.Process | None = None
+        self._stdin: asyncio.StreamWriter | None = None
         self._queue: asyncio.Queue[dict[str, Any]] = asyncio.Queue()
-        self._reader_task: Optional[asyncio.Task] = None
+        self._reader_task: asyncio.Task | None = None
         self._session_audio: dict[str, list[bytes]] = defaultdict(list)
         self._finalized: set[str] = set()
 
@@ -217,7 +213,7 @@ class WhisperSTTPipeline:
                     except (BrokenPipeError, ConnectionResetError):
                         break
 
-    async def get_next_result(self, timeout: float = 5.0) -> Optional[dict[str, Any]]:
+    async def get_next_result(self, timeout: float = 5.0) -> dict[str, Any] | None:
         """Get next STT result from whisper-cli."""
         try:
             return await asyncio.wait_for(self._queue.get(), timeout=timeout)
@@ -262,7 +258,7 @@ class ChunkedTTSPipeline:
         self._sample_rate = sample_rate
         self._session_synthesisers: dict[str, Any] = {}
 
-    async def synthesize_chunk(self, session_id: str, text: str, voice: str = PIPER_VOICE, speed: float = 1.0) -> Optional[bytes]:
+    async def synthesize_chunk(self, session_id: str, text: str, voice: str = PIPER_VOICE, speed: float = 1.0) -> bytes | None:
         """Synthesize a text chunk to PCM bytes using Piper or Kokoro."""
         if not text or not text.strip():
             return None
@@ -274,7 +270,7 @@ class ChunkedTTSPipeline:
         audio = await self._synthesize_kokoro(text, voice, speed)
         return audio
 
-    async def _synthesize_piper(self, text: str, voice: str, speed: float) -> Optional[bytes]:
+    async def _synthesize_piper(self, text: str, voice: str, speed: float) -> bytes | None:
         """Synthesize via Piper TTS."""
         try:
             cmd = [
@@ -300,7 +296,7 @@ class ChunkedTTSPipeline:
             logger.debug("piper synthesis failed: %s", exc)
         return None
 
-    async def _synthesize_kokoro(self, text: str, voice: str, speed: float) -> Optional[bytes]:
+    async def _synthesize_kokoro(self, text: str, voice: str, speed: float) -> bytes | None:
         """Synthesize via Kokoro ONNX (Python fallback)."""
         try:
             safe_text = text.replace('"', '\\"').replace("\n", " ")
@@ -390,11 +386,11 @@ async def audio_stream(websocket: WebSocket) -> None:
     """
     await websocket.accept()
 
-    session_id: Optional[str] = None
+    session_id: str | None = None
     is_final = False
-    ping_task: Optional[asyncio.Task] = None
+    ping_task: asyncio.Task | None = None
     ws_closed = False
-    stt_task_ref: list[Optional[asyncio.Task]] = [None]
+    stt_task_ref: list[asyncio.Task | None] = [None]
 
     async def ping_loop() -> None:
         """Send periodic ping frames to detect broken connections."""
@@ -548,10 +544,10 @@ async def audio_stream(websocket: WebSocket) -> None:
 
 
 async def _cleanup_session(
-    session_id: Optional[str],
+    session_id: str | None,
     stt_pipeline: WhisperSTTPipeline,
     tts_pipeline: ChunkedTTSPipeline,
-    stt_task: Optional[asyncio.Task],
+    stt_task: asyncio.Task | None,
 ) -> None:
     """Clean up session resources."""
     if session_id:

@@ -24,19 +24,17 @@ import importlib
 import logging
 import time
 from datetime import datetime, timezone
-from pathlib import Path
 from typing import Any
 
 from jarvis_os.odd_receipts import record_execution
 from jarvis_os.skills.models import (
     ExecutionStatus,
     ExecutionType,
-    SkillDependencyError,
     SkillDependency,
+    SkillDependencyError,
     SkillExecutionError,
     SkillExecutionResult,
     SkillMetadata,
-    SkillNotFoundError,
     SkillTimeoutError,
 )
 

@@ -14,11 +14,13 @@ Usage::
 
 from __future__ import annotations
 
+import json
 import logging
+from datetime import datetime
 from pathlib import Path
-from typing import Any
 
 from jarvis_os.vault.models import (
+    GraphEdge,
     GraphFormat,
     GraphNode,
     GraphStats,
@@ -248,13 +250,19 @@ class KnowledgeGraphBuilder:
 
     @staticmethod
     def _atomic_write(path: Path, data: str) -> None:
+        # The exporters target <vault>/wiki, which does not exist in a fresh
+        # vault. Without this, every format raises FileNotFoundError on the
+        # first export. Written to a sibling .tmp then renamed, so a reader
+        # never observes a half-written file.
+        path.parent.mkdir(parents=True, exist_ok=True)
         tmp = path.with_suffix(".tmp")
         tmp.write_text(data, encoding="utf-8")
         tmp.replace(path)
 
 
-def _now_utc() -> "datetime.datetime":
-    from datetime import datetime, timezone
+def _now_utc() -> datetime:
+    from datetime import timezone
+
     return datetime.now(timezone.utc)
 
 

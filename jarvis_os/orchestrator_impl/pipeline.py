@@ -25,30 +25,30 @@ from __future__ import annotations
 import asyncio
 import logging
 import uuid
+from collections.abc import Awaitable, Callable
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Awaitable, Callable, Optional
+from typing import Any
 
 from fastapi.responses import JSONResponse
 
-from jarvis_os.orchestrator_impl.events import (
-    ExecutionStatus,
-    SkillExecutionComplete,
-    SkillExecutionStart,
-)
 from jarvis_os.orchestrator_impl.errors import (
     IntentAnalysisError,
     SkillExecutionPipelineError,
     SkillResolutionError,
 )
+from jarvis_os.orchestrator_impl.events import (
+    ExecutionStatus,
+    SkillExecutionComplete,
+    SkillExecutionStart,
+)
 from jarvis_os.orchestrator_impl.intent import IntentAnalyzer, IntentResult
 from jarvis_os.orchestrator_impl.resolver import ResolvedSkill, SkillResolver
 from jarvis_os.skills.executor import SkillExecutor
 from jarvis_os.skills.loader import SkillLoader
-from jarvis_os.skills.models import SkillMetadata
 from jarvis_os.skills.registry import SkillRegistry
-from jarvis_os.vault.output_logger import VaultOutputLogger
 from jarvis_os.vault.models import VaultWriteError
+from jarvis_os.vault.output_logger import VaultOutputLogger
 
 logger = logging.getLogger(__name__)
 
@@ -78,17 +78,17 @@ class OrchestratorPipeline:
         registry: SkillRegistry,
         loader: SkillLoader,
         executor: SkillExecutor,
-        voice_client: Optional[Any] = None,
-        opencode_client: Optional[Any] = None,
-        vault_root: Optional[Path] = None,
-        tts_callback: Optional[Callable[[str], Awaitable[None]]] = None,
+        voice_client: Any | None = None,
+        opencode_client: Any | None = None,
+        vault_root: Path | None = None,
+        tts_callback: Callable[[str], Awaitable[None]] | None = None,
     ) -> None:
         self._registry = registry
         self._loader = loader
         self._executor = executor
         self._voice_client = voice_client
         self._opencode_client = opencode_client
-        self._vault_logger: Optional[VaultOutputLogger] = (
+        self._vault_logger: VaultOutputLogger | None = (
             VaultOutputLogger(vault_root=vault_root) if vault_root else None
         )
         self._tts_callback = tts_callback
@@ -123,7 +123,7 @@ class OrchestratorPipeline:
         ``session_id`` are present in the payload.
         """
         envelope: dict[str, Any]
-        event: Optional[SkillExecutionComplete] = None
+        event: SkillExecutionComplete | None = None
         try:
             intent_result = self._analyze_intent(payload)
             resolved = self._resolve_skill(intent_result, payload)
@@ -138,7 +138,7 @@ class OrchestratorPipeline:
         except SkillExecutionPipelineError as exc:
             envelope = self._error_envelope(str(exc))
             return JSONResponse(envelope, status_code=exc.status_code)
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:
             logger.exception("Unexpected pipeline error")
             envelope = self._error_envelope(f"internal error: {exc}")
             return JSONResponse(envelope, status_code=500)
@@ -153,8 +153,8 @@ class OrchestratorPipeline:
     async def _on_skill_complete(
         self,
         event: SkillExecutionComplete,
-        input_data: Optional[dict[str, Any]] = None,
-        exec_result: Optional[dict[str, Any]] = None,
+        input_data: dict[str, Any] | None = None,
+        exec_result: dict[str, Any] | None = None,
     ) -> None:
         """Post-execution hook: vault write + TTS auto-trigger."""
         # Vault output persistence
@@ -189,7 +189,7 @@ class OrchestratorPipeline:
     async def _write_vault_and_emit(
         self,
         event: SkillExecutionComplete,
-        input_data: Optional[dict[str, Any]],
+        input_data: dict[str, Any] | None,
         result_data: dict[str, Any],
     ) -> None:
         """Write vault output and emit VaultWriteEvent with the returned output_ref."""
@@ -280,7 +280,7 @@ class OrchestratorPipeline:
 
     async def _execute_skill(
         self, resolved: ResolvedSkill, payload: dict[str, Any]
-    ) -> tuple[dict[str, Any], Optional[SkillExecutionComplete]]:
+    ) -> tuple[dict[str, Any], SkillExecutionComplete | None]:
         """Execute the resolved skill and return its outcome.
 
         Args:
@@ -348,8 +348,8 @@ class OrchestratorPipeline:
         Returns:
             Execution result dict.
         """
-        from jarvis_os.opencode_adapter.protocol import create_request
         from jarvis_os.opencode_adapter.models import SkillContext
+        from jarvis_os.opencode_adapter.protocol import create_request
 
         # _resolve_skill guarantees _opencode_client is not None here
         assert self._opencode_client is not None
@@ -362,7 +362,7 @@ class OrchestratorPipeline:
 
         try:
             response = await self._opencode_client.execute_skill(request)
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:
             logger.error("OpenCode execution failed: %s", exc)
             raise SkillExecutionPipelineError(
                 f"OpenCode execution failed: {exc}"

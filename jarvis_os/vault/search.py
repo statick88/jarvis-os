@@ -13,7 +13,6 @@ from __future__ import annotations
 import logging
 import re
 from pathlib import Path
-from typing import Any
 
 from jarvis_os.vault.models import (
     MAX_SEARCH_RESULTS,
@@ -178,8 +177,7 @@ class VaultSearch:
                 idx = lower.find(term, pos)
                 if idx == -1:
                     break
-                if idx > best_pos:
-                    best_pos = idx
+                best_pos = max(best_pos, idx)
                 pos = idx + 1
 
         start = max(0, best_pos - window)

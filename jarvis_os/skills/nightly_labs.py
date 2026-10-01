@@ -10,9 +10,7 @@ Pipeline: scan_vault → extract_notes → process_with_llm → generate_report
 from __future__ import annotations
 
 import asyncio
-import json
 import logging
-import os
 import shutil
 import subprocess
 from datetime import datetime, timezone
@@ -20,7 +18,6 @@ from pathlib import Path
 from typing import Any
 
 from jarvis_os.skills.base import BaseSkill, SkillPermission
-from jarvis_os.vault.models import VaultNote
 from jarvis_os.vault.search import VaultSearch
 
 logger = logging.getLogger(__name__)
@@ -354,14 +351,13 @@ class NightlyLabsSkill(BaseSkill):
             "stream": False,
         }
 
-        async with aiohttp.ClientSession() as session:
-            async with session.post(
-                "http://localhost:11434/api/chat",
-                json=payload,
-                timeout=aiohttp.ClientTimeout(total=timeout),
-            ) as response:
-                data = await response.json()
-                return data.get("message", {}).get("content", "")
+        async with aiohttp.ClientSession() as session, session.post(
+            "http://localhost:11434/api/chat",
+            json=payload,
+            timeout=aiohttp.ClientTimeout(total=timeout),
+        ) as response:
+            data = await response.json()
+            return data.get("message", {}).get("content", "")
 
     async def _run_local_gguf(self, prompt: str, timeout: int) -> str:
         """Run prompt using local GGUF model (via llama-cli)."""

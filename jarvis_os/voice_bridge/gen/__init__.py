@@ -15,11 +15,10 @@ from jarvis_os.voice_bridge.gen.voice_api_pb2 import (
     SegmentTimestamp,
     STTResponse,
     SynthesizeResponse,
-    TTSRequest,
     TranscribeRequest,
+    TTSRequest,
     WordTimestamp,
 )
-
 from jarvis_os.voice_bridge.gen.voice_api_pb2_grpc import (
     VoicePipelineServicer,
     VoicePipelineStub,

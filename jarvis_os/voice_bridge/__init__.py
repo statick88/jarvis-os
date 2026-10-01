@@ -4,14 +4,14 @@ from jarvis_os.voice_bridge.client import JarvisVoiceBridge, JarvisVoiceError
 
 __all__ = [
     "AudioChunk",
-    "TranscribeRequest",
-        "STTResponse",
-    "TTSRequest",
-    "SynthesizeResponse",
     "HealthRequest",
     "HealthResponse",
     "JarvisVoiceBridge",
     "JarvisVoiceError",
+    "STTResponse",
+    "SynthesizeResponse",
+    "TTSRequest",
+    "TranscribeRequest",
     "__version__",
 ]
 

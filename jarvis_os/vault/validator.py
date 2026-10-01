@@ -17,22 +17,19 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
-from datetime import datetime, timezone
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
 import yaml
 
 from jarvis_os.vault.models import (
-    NOTE_ID_RE,
     ValidationIssue,
     ValidationReport,
     VaultIndex,
+    VaultInvalidFrontmatterError,
     VaultNote,
     VaultOperationResult,
-    VaultBrokenLinkError,
-    VaultDuplicateIdError,
-    VaultInvalidFrontmatterError,
     VaultParseError,
 )
 

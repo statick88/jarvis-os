@@ -183,7 +183,7 @@ class Receipt(BaseModel):
             (canonical_json(self.payload()) + self.prev_hash).encode("utf-8")
         ).hexdigest()
 
-    def seal(self) -> "Receipt":
+    def seal(self) -> Receipt:
         """Freeze ``completed_at`` and compute the hash. Idempotent per state."""
         if self.completed_at is None:
             self.completed_at = utcnow_iso()

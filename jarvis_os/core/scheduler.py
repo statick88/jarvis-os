@@ -15,10 +15,11 @@ from __future__ import annotations
 import asyncio
 import logging
 import time
+from collections.abc import Callable, Coroutine
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
-from typing import Any, Callable, Coroutine
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -305,7 +306,7 @@ class IdleScheduler:
 
         # Fallback: read /proc on Linux
         try:
-            with open("/proc/loadavg") as f:  # noqa: SIM115
+            with open("/proc/loadavg") as f:
                 load = float(f.read().split()[0])
             return ResourceSnapshot(cpu_percent=load * 25)  # rough estimate
         except (FileNotFoundError, IndexError, ValueError):

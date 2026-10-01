@@ -8,26 +8,46 @@ easy conversion to/from protobuf messages.
 
 from __future__ import annotations
 
-from datetime import datetime
-from typing import Literal, Optional
 from uuid import uuid4
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field
 
 # Import protobuf classes for conversion
 try:
     from jarvis_os.voice_bridge.gen.voice_api_pb2 import (
         AudioChunk as PbAudioChunk,
+    )
+    from jarvis_os.voice_bridge.gen.voice_api_pb2 import (
         HealthRequest as PbHealthRequest,
+    )
+    from jarvis_os.voice_bridge.gen.voice_api_pb2 import (
         HealthResponse as PbHealthResponse,
+    )
+    from jarvis_os.voice_bridge.gen.voice_api_pb2 import (
         ListModelsRequest as PbListModelsRequest,
+    )
+    from jarvis_os.voice_bridge.gen.voice_api_pb2 import (
         ListModelsResponse as PbListModelsResponse,
+    )
+    from jarvis_os.voice_bridge.gen.voice_api_pb2 import (
         ModelInfo as PbModelInfo,
+    )
+    from jarvis_os.voice_bridge.gen.voice_api_pb2 import (
         SegmentTimestamp as PbSegmentTimestamp,
+    )
+    from jarvis_os.voice_bridge.gen.voice_api_pb2 import (
         STTResponse as PbSTTResponse,
+    )
+    from jarvis_os.voice_bridge.gen.voice_api_pb2 import (
         SynthesizeResponse as PbSynthesizeResponse,
-        TTSRequest as PbTTSRequest,
+    )
+    from jarvis_os.voice_bridge.gen.voice_api_pb2 import (
         TranscribeRequest as PbTranscribeRequest,
+    )
+    from jarvis_os.voice_bridge.gen.voice_api_pb2 import (
+        TTSRequest as PbTTSRequest,
+    )
+    from jarvis_os.voice_bridge.gen.voice_api_pb2 import (
         WordTimestamp as PbWordTimestamp,
     )
     PB_AVAILABLE = True
@@ -50,7 +70,7 @@ class AudioChunk(BaseModel):
     session_id: str = Field(default_factory=lambda: str(uuid4()), description="Session identifier")
     timestamp_ms: int = Field(0, description="Timestamp of first sample (Unix ms)")
 
-    def to_protobuf(self) -> "PbAudioChunk":
+    def to_protobuf(self) -> PbAudioChunk:
         """Convert to protobuf AudioChunk."""
         if not PB_AVAILABLE:
             raise RuntimeError("Protobuf not available")
@@ -62,7 +82,7 @@ class AudioChunk(BaseModel):
         )
 
     @classmethod
-    def from_protobuf(cls, pb: "PbAudioChunk") -> "AudioChunk":
+    def from_protobuf(cls, pb: PbAudioChunk) -> AudioChunk:
         """Create from protobuf AudioChunk."""
         return cls(
             data=pb.data,
@@ -81,7 +101,7 @@ class TranscribeRequest(BaseModel):
     format: str = Field("wav", description="Audio format: wav, pcm, ogg, mp3")
     word_timestamps: bool = Field(False, description="Enable word-level timestamps")
 
-    def to_protobuf(self) -> "PbTranscribeRequest":
+    def to_protobuf(self) -> PbTranscribeRequest:
         if not PB_AVAILABLE:
             raise RuntimeError("Protobuf not available")
         return PbTranscribeRequest(
@@ -94,7 +114,7 @@ class TranscribeRequest(BaseModel):
         )
 
     @classmethod
-    def from_protobuf(cls, pb: "PbTranscribeRequest") -> "TranscribeRequest":
+    def from_protobuf(cls, pb: PbTranscribeRequest) -> TranscribeRequest:
         return cls(
             audio_data=pb.audio_data,
             model=pb.model,
@@ -112,7 +132,7 @@ class WordTimestamp(BaseModel):
     end_ms: float
     confidence: float
 
-    def to_protobuf(self) -> "PbWordTimestamp":
+    def to_protobuf(self) -> PbWordTimestamp:
         if not PB_AVAILABLE:
             raise RuntimeError("Protobuf not available")
         return PbWordTimestamp(
@@ -123,7 +143,7 @@ class WordTimestamp(BaseModel):
         )
 
     @classmethod
-    def from_protobuf(cls, pb: "PbWordTimestamp") -> "WordTimestamp":
+    def from_protobuf(cls, pb: PbWordTimestamp) -> WordTimestamp:
         return cls(
             word=pb.word,
             start_ms=pb.start_ms,
@@ -140,7 +160,7 @@ class SegmentTimestamp(BaseModel):
     avg_confidence: float
     speaker_id: int = -1
 
-    def to_protobuf(self) -> "PbSegmentTimestamp":
+    def to_protobuf(self) -> PbSegmentTimestamp:
         if not PB_AVAILABLE:
             raise RuntimeError("Protobuf not available")
         return PbSegmentTimestamp(
@@ -152,7 +172,7 @@ class SegmentTimestamp(BaseModel):
         )
 
     @classmethod
-    def from_protobuf(cls, pb: "PbSegmentTimestamp") -> "SegmentTimestamp":
+    def from_protobuf(cls, pb: PbSegmentTimestamp) -> SegmentTimestamp:
         return cls(
             text=pb.text,
             start_ms=pb.start_ms,
@@ -172,7 +192,7 @@ class STTResponse(BaseModel):
     words: list[WordTimestamp] = Field(default_factory=list, description="Word-level timestamps")
     segments: list[SegmentTimestamp] = Field(default_factory=list, description="Segment-level timestamps")
 
-    def to_protobuf(self) -> "PbSTTResponse":
+    def to_protobuf(self) -> PbSTTResponse:
         if not PB_AVAILABLE:
             raise RuntimeError("Protobuf not available")
         return PbSTTResponse(
@@ -186,7 +206,7 @@ class STTResponse(BaseModel):
         )
 
     @classmethod
-    def from_protobuf(cls, pb: "PbSTTResponse") -> "STTResponse":
+    def from_protobuf(cls, pb: PbSTTResponse) -> STTResponse:
         return cls(
             text=pb.text,
             confidence=pb.confidence,
@@ -209,9 +229,9 @@ class TTSRequest(BaseModel):
     speed: float = Field(1.0, ge=0.5, le=2.0, description="Speech rate multiplier")
     format: str = Field("wav", description="Output format: wav, mp3, opus, pcm, flac")
     sample_rate: int = Field(22050, description="Sample rate: 16000, 22050, 44100, 48000")
-    ssml: Optional[str] = Field(None, description="Optional SSML markup (overrides text)")
+    ssml: str | None = Field(None, description="Optional SSML markup (overrides text)")
 
-    def to_protobuf(self) -> "PbTTSRequest":
+    def to_protobuf(self) -> PbTTSRequest:
         if not PB_AVAILABLE:
             raise RuntimeError("Protobuf not available")
         return PbTTSRequest(
@@ -224,7 +244,7 @@ class TTSRequest(BaseModel):
         )
 
     @classmethod
-    def from_protobuf(cls, pb: "PbTTSRequest") -> "TTSRequest":
+    def from_protobuf(cls, pb: PbTTSRequest) -> TTSRequest:
         return cls(
             text=pb.text,
             voice=pb.voice,
@@ -243,7 +263,7 @@ class SynthesizeResponse(BaseModel):
     duration_ms: int = Field(0, description="Duration of generated audio")
     characters: int = Field(0, description="Number of characters synthesized")
 
-    def to_protobuf(self) -> "PbSynthesizeResponse":
+    def to_protobuf(self) -> PbSynthesizeResponse:
         if not PB_AVAILABLE:
             raise RuntimeError("Protobuf not available")
         return PbSynthesizeResponse(
@@ -255,7 +275,7 @@ class SynthesizeResponse(BaseModel):
         )
 
     @classmethod
-    def from_protobuf(cls, pb: "PbSynthesizeResponse") -> "SynthesizeResponse":
+    def from_protobuf(cls, pb: PbSynthesizeResponse) -> SynthesizeResponse:
         return cls(
             audio_data=pb.audio_data,
             format=pb.format,
@@ -271,13 +291,13 @@ class SynthesizeResponse(BaseModel):
 
 class HealthRequest(BaseModel):
     """Health check request (empty)."""
-    def to_protobuf(self) -> "PbHealthRequest":
+    def to_protobuf(self) -> PbHealthRequest:
         if not PB_AVAILABLE:
             raise RuntimeError("Protobuf not available")
         return PbHealthRequest()
 
     @classmethod
-    def from_protobuf(cls, pb: "PbHealthRequest") -> "HealthRequest":
+    def from_protobuf(cls, pb: PbHealthRequest) -> HealthRequest:
         return cls()
 
 
@@ -291,7 +311,7 @@ class HealthResponse(BaseModel):
     gpu_acceleration: bool = Field(False, description="GPU/Metal acceleration status")
     memory_bytes: int = Field(0, description="Memory usage in bytes (RSS)")
 
-    def to_protobuf(self) -> "PbHealthResponse":
+    def to_protobuf(self) -> PbHealthResponse:
         if not PB_AVAILABLE:
             raise RuntimeError("Protobuf not available")
         return PbHealthResponse(
@@ -305,7 +325,7 @@ class HealthResponse(BaseModel):
         )
 
     @classmethod
-    def from_protobuf(cls, pb: "PbHealthResponse") -> "HealthResponse":
+    def from_protobuf(cls, pb: PbHealthResponse) -> HealthResponse:
         return cls(
             healthy=pb.healthy,
             version=pb.version,
@@ -327,7 +347,7 @@ class ModelInfo(BaseModel):
     sample_rates: list[int] = Field(default_factory=list, description="Supported sample rates (TTS)")
     description: str = Field("", description="Description / capabilities")
 
-    def to_protobuf(self) -> "PbModelInfo":
+    def to_protobuf(self) -> PbModelInfo:
         if not PB_AVAILABLE:
             raise RuntimeError("Protobuf not available")
         return PbModelInfo(
@@ -341,7 +361,7 @@ class ModelInfo(BaseModel):
         )
 
     @classmethod
-    def from_protobuf(cls, pb: "PbModelInfo") -> "ModelInfo":
+    def from_protobuf(cls, pb: PbModelInfo) -> ModelInfo:
         return cls(
             id=pb.id,
             name=pb.name,
@@ -355,13 +375,13 @@ class ModelInfo(BaseModel):
 
 class ListModelsRequest(BaseModel):
     """List models request (empty)."""
-    def to_protobuf(self) -> "PbListModelsRequest":
+    def to_protobuf(self) -> PbListModelsRequest:
         if not PB_AVAILABLE:
             raise RuntimeError("Protobuf not available")
         return PbListModelsRequest()
 
     @classmethod
-    def from_protobuf(cls, pb: "PbListModelsRequest") -> "ListModelsRequest":
+    def from_protobuf(cls, pb: PbListModelsRequest) -> ListModelsRequest:
         return cls()
 
 
@@ -370,7 +390,7 @@ class ListModelsResponse(BaseModel):
     stt_models: list[ModelInfo] = Field(default_factory=list)
     tts_voices: list[ModelInfo] = Field(default_factory=list)
 
-    def to_protobuf(self) -> "PbListModelsResponse":
+    def to_protobuf(self) -> PbListModelsResponse:
         if not PB_AVAILABLE:
             raise RuntimeError("Protobuf not available")
         return PbListModelsResponse(
@@ -379,7 +399,7 @@ class ListModelsResponse(BaseModel):
         )
 
     @classmethod
-    def from_protobuf(cls, pb: "PbListModelsResponse") -> "ListModelsResponse":
+    def from_protobuf(cls, pb: PbListModelsResponse) -> ListModelsResponse:
         return cls(
             stt_models=[ModelInfo.from_protobuf(m) for m in pb.stt_models],
             tts_voices=[ModelInfo.from_protobuf(m) for m in pb.tts_voices],
@@ -390,22 +410,22 @@ class ListModelsResponse(BaseModel):
 # Conversion Helpers
 # ============================================================================
 
-def stt_response_from_protobuf(pb: "PbSTTResponse") -> STTResponse:
+def stt_response_from_protobuf(pb: PbSTTResponse) -> STTResponse:
     """Convenience function to convert protobuf STTResponse."""
     return STTResponse.from_protobuf(pb)
 
 
-def synthesize_response_from_protobuf(pb: "PbSynthesizeResponse") -> SynthesizeResponse:
+def synthesize_response_from_protobuf(pb: PbSynthesizeResponse) -> SynthesizeResponse:
     """Convenience function to convert protobuf SynthesizeResponse."""
     return SynthesizeResponse.from_protobuf(pb)
 
 
-def health_response_from_protobuf(pb: "PbHealthResponse") -> HealthResponse:
+def health_response_from_protobuf(pb: PbHealthResponse) -> HealthResponse:
     """Convenience function to convert protobuf HealthResponse."""
     return HealthResponse.from_protobuf(pb)
 
 
-def list_models_response_from_protobuf(pb: "PbListModelsResponse") -> ListModelsResponse:
+def list_models_response_from_protobuf(pb: PbListModelsResponse) -> ListModelsResponse:
     """Convenience function to convert protobuf ListModelsResponse."""
     return ListModelsResponse.from_protobuf(pb)
 

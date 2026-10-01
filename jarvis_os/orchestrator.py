@@ -14,9 +14,9 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+import uvicorn
 from fastapi import FastAPI
 from fastapi.responses import JSONResponse
-import uvicorn
 
 from jarvis_os.api.routes.skills import router as skills_router
 from jarvis_os.config import get_settings
@@ -65,7 +65,9 @@ def _get_voice_client() -> Any:
     global _voice_client
     if _voice_client is None:
         try:
-            from jarvis_os.voice_bridge.orchestrator_client import OrchestratorVoiceClient
+            from jarvis_os.voice_bridge.orchestrator_client import (
+                OrchestratorVoiceClient,
+            )
             _voice_client = OrchestratorVoiceClient(
                 host="jarvis-voice",
                 port=8080,

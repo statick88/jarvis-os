@@ -35,7 +35,7 @@ def run(input_data: dict[str, Any]) -> dict[str, Any]:
         if action == "create":
             return _create(vault_path, date_str, bool(input_data.get("replace_all", False)))
         elif action == "read":
-            return _read(vault_path, date_str)
+            return _read_plan(vault_path, date_str)
         elif action == "add_task":
             return _add_task(input_data, vault_path, date_str)
         elif action == "complete_task":
@@ -45,7 +45,7 @@ def run(input_data: dict[str, Any]) -> dict[str, Any]:
         elif action == "add_blocker":
             return _add_blocker(input_data, vault_path, date_str)
         elif action == "list":
-            return _read(vault_path, date_str)
+            return _read_plan(vault_path, date_str)
         elif action == "update":
             return {"success": True, "data": {"message": "Use specific actions instead"}}
         elif action == "archive":

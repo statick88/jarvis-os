@@ -86,7 +86,7 @@ def _capture(input_data: dict[str, Any], vault_path: Path, date_str: str) -> dic
     if author:
         lines.append(f"**Author:** {author}")
     lines.extend([
-        f"**Processed:** false",
+        "**Processed:** false",
         f"**Content:** {content}",
         "---",
         "",

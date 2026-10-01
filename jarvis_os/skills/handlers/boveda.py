@@ -12,12 +12,12 @@ import logging
 from pathlib import Path
 from typing import Any
 
-from jarvis_os.vault.indexer import VaultIndexer
-from jarvis_os.vault.search import VaultSearch
 from jarvis_os.vault.graph import KnowledgeGraphBuilder
+from jarvis_os.vault.indexer import VaultIndexer
+from jarvis_os.vault.models import GraphFormat
+from jarvis_os.vault.search import VaultSearch
 from jarvis_os.vault.stats import VaultStatsComputer
 from jarvis_os.vault.validator import VaultValidator
-from jarvis_os.vault.models import GraphFormat
 
 logger = logging.getLogger(__name__)
 

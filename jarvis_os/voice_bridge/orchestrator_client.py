@@ -17,18 +17,17 @@ Usage::
 from __future__ import annotations
 
 import asyncio
-import json
 import logging
 import time
-from typing import Any, Callable, Optional
+from collections.abc import Callable
+from typing import Any
 from uuid import uuid4
 
 from jarvis_os.voice_bridge.client import (
-    ConnectionState,
     JarvisVoiceBridgeWS,
     JarvisVoiceError,
-    STTPartialEvent,
     STTFinalEvent,
+    STTPartialEvent,
     TTSChunkEvent,
 )
 
@@ -65,7 +64,7 @@ class OrchestratorVoiceClient:
         port: int = 8080,
         max_sessions: int = _DEFAULT_MAX_SESSIONS,
         idle_timeout_s: int = _DEFAULT_IDLE_TIMEOUT_S,
-        token: Optional[str] = None,
+        token: str | None = None,
     ) -> None:
         self._host = host
         self._port = port
@@ -86,7 +85,7 @@ class OrchestratorVoiceClient:
         }
 
         # Background cleanup task
-        self._cleanup_task: Optional[asyncio.Task] = None
+        self._cleanup_task: asyncio.Task | None = None
         self._shutdown = asyncio.Event()
 
     # ------------------------------------------------------------------
@@ -128,7 +127,7 @@ class OrchestratorVoiceClient:
     # Session management
     # ------------------------------------------------------------------
 
-    async def open_session(self, session_id: Optional[str] = None) -> SessionAck:
+    async def open_session(self, session_id: str | None = None) -> SessionAck:
         """Open a new voice session.
 
         Args:

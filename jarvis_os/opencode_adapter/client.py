@@ -10,8 +10,8 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
-from typing import Any, Optional
-from uuid import UUID, uuid4
+from typing import Any
+from uuid import uuid4
 
 import aiohttp
 
@@ -79,8 +79,8 @@ class OpenCodeClient:
         self._client_id = uuid4().hex[:12]
 
         # Transport state
-        self._session: Optional[aiohttp.ClientSession] = None
-        self._ws: Optional[aiohttp.ClientWebSocketResponse] = None
+        self._session: aiohttp.ClientSession | None = None
+        self._ws: aiohttp.ClientWebSocketResponse | None = None
         self._connected = False
         self._closing = False
 
@@ -88,8 +88,8 @@ class OpenCodeClient:
         self._pending: dict[str, asyncio.Future[Envelope]] = {}
 
         # Background tasks
-        self._heartbeat_task: Optional[asyncio.Task[None]] = None
-        self._receive_task: Optional[asyncio.Task[None]] = None
+        self._heartbeat_task: asyncio.Task[None] | None = None
+        self._receive_task: asyncio.Task[None] | None = None
 
     # ------------------------------------------------------------------
     # Async context manager

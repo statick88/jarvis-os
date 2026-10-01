@@ -15,9 +15,8 @@ from pydantic import BaseModel, Field
 
 from jarvis_os.skills.executor import SkillExecutor
 from jarvis_os.skills.loader import SkillLoader
-from jarvis_os.skills.models import SkillMetadata
-from jarvis_os.skills.registry import SkillRegistry
 from jarvis_os.skills.plugin_registry_instance import shared_registry as plugin_registry
+from jarvis_os.skills.registry import SkillRegistry
 
 logger = logging.getLogger(__name__)
 

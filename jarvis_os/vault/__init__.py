@@ -20,9 +20,21 @@ the boveda skill service layer).
 
 from __future__ import annotations
 
+from jarvis_os.vault.graph import KnowledgeGraphBuilder
+from jarvis_os.vault.indexer import VaultIndexer
+from jarvis_os.vault.links import (
+    backlinks_for,
+    extract_frontmatter_links,
+    extract_wikilinks,
+    resolve_links,
+)
 from jarvis_os.vault.models import (
     DEFAULT_SNIPPET_CHARS,
     INDEX_VERSION,
+    MAX_GRAPH_DEPTH,
+    MAX_SEARCH_RESULTS,
+    NOTE_ID_RE,
+    WIKILINK_RE,
     GraphEdge,
     GraphFormat,
     GraphNode,
@@ -31,12 +43,11 @@ from jarvis_os.vault.models import (
     IssueSeverity,
     KnowledgeGraph,
     LinkKind,
-    MAX_GRAPH_DEPTH,
-    MAX_SEARCH_RESULTS,
     NoteFrontmatter,
     NoteLink,
-    NOTE_ID_RE,
     SearchResult,
+    ValidationIssue,
+    ValidationReport,
     VaultAction,
     VaultBrokenLinkError,
     VaultChange,
@@ -51,21 +62,19 @@ from jarvis_os.vault.models import (
     VaultParseError,
     VaultStats,
     VaultWriteError,
-    ValidationIssue,
-    ValidationReport,
-    WIKILINK_RE,
 )
-from jarvis_os.vault.indexer import VaultIndexer
 from jarvis_os.vault.output_logger import VaultOutputLogger, parse_output_frontmatter
 from jarvis_os.vault.search import VaultSearch
-from jarvis_os.vault.graph import KnowledgeGraphBuilder
 from jarvis_os.vault.stats import VaultStatsComputer
 from jarvis_os.vault.validator import VaultValidator, parse_frontmatter_block
-from jarvis_os.vault.links import extract_wikilinks, extract_frontmatter_links, resolve_links, backlinks_for
 
 __all__ = [
     "DEFAULT_SNIPPET_CHARS",
     "INDEX_VERSION",
+    "MAX_GRAPH_DEPTH",
+    "MAX_SEARCH_RESULTS",
+    "NOTE_ID_RE",
+    "WIKILINK_RE",
     "GraphEdge",
     "GraphFormat",
     "GraphNode",
@@ -75,12 +84,11 @@ __all__ = [
     "KnowledgeGraph",
     "KnowledgeGraphBuilder",
     "LinkKind",
-    "MAX_GRAPH_DEPTH",
-    "MAX_SEARCH_RESULTS",
     "NoteFrontmatter",
     "NoteLink",
-    "NOTE_ID_RE",
     "SearchResult",
+    "ValidationIssue",
+    "ValidationReport",
     "VaultAction",
     "VaultBrokenLinkError",
     "VaultChange",
@@ -89,8 +97,8 @@ __all__ = [
     "VaultError",
     "VaultIndex",
     "VaultIndexCorruptError",
-    "VaultInvalidFrontmatterError",
     "VaultIndexer",
+    "VaultInvalidFrontmatterError",
     "VaultNote",
     "VaultOperationResult",
     "VaultOutputLogger",
@@ -100,9 +108,6 @@ __all__ = [
     "VaultStatsComputer",
     "VaultValidator",
     "VaultWriteError",
-    "ValidationIssue",
-    "ValidationReport",
-    "WIKILINK_RE",
     "backlinks_for",
     "extract_frontmatter_links",
     "extract_wikilinks",

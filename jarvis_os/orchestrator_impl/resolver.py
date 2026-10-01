@@ -8,14 +8,11 @@ across skill names and descriptions.
 from __future__ import annotations
 
 import logging
-from dataclasses import dataclass, field
-from typing import Any
+from dataclasses import dataclass
 
 from jarvis_os.skills.loader import SkillLoader
 from jarvis_os.skills.models import SkillMetadata
 from jarvis_os.skills.registry import SkillRegistry
-
-from jarvis_os.orchestrator_impl.errors import SkillResolutionError
 
 logger = logging.getLogger(__name__)
 

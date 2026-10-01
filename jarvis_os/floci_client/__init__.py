@@ -17,8 +17,8 @@ from jarvis_os.floci_client.models import (
 )
 
 __all__ = [
-    "BucketType",
     "BucketNotFoundError",
+    "BucketType",
     "DownloadError",
     "FlociClient",
     "FlociConfig",

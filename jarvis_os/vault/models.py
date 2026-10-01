@@ -15,7 +15,7 @@ import re
 from datetime import datetime, timezone
 from enum import StrEnum
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 from pydantic import BaseModel, Field, field_validator
 
@@ -46,7 +46,7 @@ class VaultError(Exception):
 
     code = "VAULT_ERROR"
 
-    def __init__(self, message: str = "", *, note_id: Optional[str] = None) -> None:
+    def __init__(self, message: str = "", *, note_id: str | None = None) -> None:
         self.note_id = note_id
         if note_id and not message:
             message = f"note {note_id!r}"
@@ -154,7 +154,7 @@ class NoteLink(BaseModel):
 
     target: str = Field(..., description="Target note id or path")
     kind: LinkKind = Field(default=LinkKind.WIKI_LINK, description="Relationship type")
-    alias: Optional[str] = Field(default=None, description="Display alias ([[target|alias]])")
+    alias: str | None = Field(default=None, description="Display alias ([[target|alias]])")
     resolved: bool = Field(
         default=True, description="False when the target is missing (broken link)"
     )
@@ -256,7 +256,7 @@ class VaultIndex(BaseModel):
         default_factory=dict, description="Mapping of note id to index entry"
     )
 
-    def get(self, note_id: str) -> Optional[IndexEntry]:
+    def get(self, note_id: str) -> IndexEntry | None:
         """Look up an entry by id, ignoring tombstones."""
         entry = self.files.get(note_id)
         if entry is not None and entry.deleted:
@@ -318,7 +318,7 @@ class KnowledgeGraph(BaseModel):
     stats: GraphStats = Field(
         default_factory=GraphStats, description="Graph aggregates"
     )
-    root_note_id: Optional[str] = Field(
+    root_note_id: str | None = Field(
         default=None, description="Note id the graph was expanded from (max_depth)"
     )
 
@@ -337,7 +337,7 @@ class VaultStats(BaseModel):
     notes_by_tag: dict[str, int] = Field(default_factory=dict, description="Tag -> note count")
     notes_by_dir: dict[str, int] = Field(default_factory=dict, description="Rel dir -> note count")
     notes_by_year: dict[int, int] = Field(default_factory=dict, description="Year -> note count")
-    index_updated_at: Optional[datetime] = Field(
+    index_updated_at: datetime | None = Field(
         default=None, description="Timestamp of the index the stats were computed from"
     )
 
@@ -348,14 +348,14 @@ class VaultStats(BaseModel):
 class ValidationIssue(BaseModel):
     """One finding from a vault validation pass."""
 
-    note_id: Optional[str] = Field(default=None, description="Affected note id, if any")
-    rel_path: Optional[str] = Field(default=None, description="Affected file, if any")
+    note_id: str | None = Field(default=None, description="Affected note id, if any")
+    rel_path: str | None = Field(default=None, description="Affected file, if any")
     severity: IssueSeverity = Field(
         default=IssueSeverity.ERROR, description="Severity of the finding"
     )
     code: str = Field(..., description="Machine-readable code (boveda error table)")
     message: str = Field(..., description="Human-readable description")
-    field: Optional[str] = Field(default=None, description="Frontmatter field, when applicable")
+    field: str | None = Field(default=None, description="Frontmatter field, when applicable")
 
 
 class ValidationReport(BaseModel):
@@ -382,7 +382,7 @@ class VaultChange(BaseModel):
 
     operation: VaultChangeOperation = Field(..., description="What changed")
     note_id: str = Field(..., description="Affected note id")
-    rel_path: Optional[str] = Field(default=None, description="Affected file, if any")
+    rel_path: str | None = Field(default=None, description="Affected file, if any")
     detail: str = Field(default="", description="Human-readable detail")
     timestamp: datetime = Field(
         default_factory=lambda: datetime.now(timezone.utc), description="Change time (UTC)"
@@ -395,19 +395,19 @@ class VaultOperationResult(BaseModel):
     success: bool = Field(..., description="True when the action completed")
     data: dict[str, Any] = Field(default_factory=dict, description="Action-specific payload")
     changes: list[VaultChange] = Field(default_factory=list, description="Mutations applied")
-    error: Optional[str] = Field(default=None, description="Error message when success is False")
-    error_code: Optional[str] = Field(
+    error: str | None = Field(default=None, description="Error message when success is False")
+    error_code: str | None = Field(
         default=None, description="Machine-readable error code from the boveda error table"
     )
 
     @classmethod
-    def ok(cls, data: Optional[dict[str, Any]] = None) -> "VaultOperationResult":
+    def ok(cls, data: dict[str, Any] | None = None) -> VaultOperationResult:
         return cls(success=True, data=data or {})
 
     @classmethod
     def failed(
-        cls, err: VaultError, data: Optional[dict[str, Any]] = None
-    ) -> "VaultOperationResult":
+        cls, err: VaultError, data: dict[str, Any] | None = None
+    ) -> VaultOperationResult:
         return cls(
             success=False,
             data=data or {},
@@ -419,6 +419,10 @@ class VaultOperationResult(BaseModel):
 __all__ = [
     "DEFAULT_SNIPPET_CHARS",
     "INDEX_VERSION",
+    "MAX_GRAPH_DEPTH",
+    "MAX_SEARCH_RESULTS",
+    "NOTE_ID_RE",
+    "WIKILINK_RE",
     "GraphEdge",
     "GraphFormat",
     "GraphNode",
@@ -427,12 +431,11 @@ __all__ = [
     "IssueSeverity",
     "KnowledgeGraph",
     "LinkKind",
-    "MAX_GRAPH_DEPTH",
-    "MAX_SEARCH_RESULTS",
     "NoteFrontmatter",
     "NoteLink",
-    "NOTE_ID_RE",
     "SearchResult",
+    "ValidationIssue",
+    "ValidationReport",
     "VaultAction",
     "VaultBrokenLinkError",
     "VaultChange",
@@ -447,7 +450,4 @@ __all__ = [
     "VaultParseError",
     "VaultStats",
     "VaultWriteError",
-    "ValidationIssue",
-    "ValidationReport",
-    "WIKILINK_RE",
 ]

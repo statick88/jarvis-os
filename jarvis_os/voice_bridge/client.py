@@ -6,7 +6,8 @@ import asyncio
 import json
 import logging
 import time
-from typing import Any, AsyncIterator, Callable, Optional
+from collections.abc import AsyncIterator, Callable
+from typing import Any
 from uuid import uuid4
 
 import grpc
@@ -18,10 +19,10 @@ from jarvis_os.voice_bridge.models import (
     HealthResponse,
     ListModelsRequest,
     ListModelsResponse,
-    SynthesizeResponse,
-    TTSRequest,
-    TranscribeRequest,
     STTResponse,
+    SynthesizeResponse,
+    TranscribeRequest,
+    TTSRequest,
 )
 
 logger = logging.getLogger(__name__)
@@ -57,7 +58,7 @@ class JarvisVoiceError(Exception):
             for non-gRPC errors.
     """
 
-    def __init__(self, message: str, *, status_code: Optional[grpc.StatusCode] = None) -> None:
+    def __init__(self, message: str, *, status_code: grpc.StatusCode | None = None) -> None:
         super().__init__(message)
         self.message = message
         self.status_code = status_code
@@ -92,8 +93,8 @@ class JarvisVoiceBridge:
         self._max_retries = max_retries
         self._backoff_base = backoff_base
 
-        self._channel: Optional[grpc.aio.Channel] = None
-        self._stub: Optional[voice_api_pb2_grpc.VoiceServiceStub] = None
+        self._channel: grpc.aio.Channel | None = None
+        self._stub: voice_api_pb2_grpc.VoiceServiceStub | None = None
 
     # ------------------------------------------------------------------
     # Channel management
@@ -140,7 +141,7 @@ class JarvisVoiceBridge:
         rpc_fn: Any,
         request: Any,
         *,
-        timeout: Optional[float] = None,
+        timeout: float | None = None,
     ) -> Any:
         """Execute *rpc_fn(request)* with exponential-backoff retry.
 
@@ -162,7 +163,7 @@ class JarvisVoiceBridge:
                 budget is exhausted.
         """
         effective_timeout = timeout if timeout is not None else self._timeout
-        last_exc: Optional[grpc.aio.AioRpcError] = None
+        last_exc: grpc.aio.AioRpcError | None = None
 
         for attempt in range(self._max_retries + 1):
             try:
@@ -363,7 +364,7 @@ class JarvisVoiceBridgeWS:
         self._backoff_max = backoff_max
         self._jitter = jitter
 
-        self._ws: Optional[websockets.WebSocketClientProtocol] = None
+        self._ws: websockets.WebSocketClientProtocol | None = None
         self._session_id: str = ""
         self._state: str = ConnectionState.DISCONNECTED
         self._pending_audio: asyncio.Queue[bytes] = asyncio.Queue()
@@ -379,7 +380,7 @@ class JarvisVoiceBridgeWS:
     # Connection management
     # ------------------------------------------------------------------
 
-    async def connect(self, session_id: Optional[str] = None, token: Optional[str] = None) -> None:
+    async def connect(self, session_id: str | None = None, token: str | None = None) -> None:
         """Open WebSocket connection with exponential backoff retry."""
         self._session_id = session_id or str(uuid4())
         headers = {}
@@ -388,7 +389,7 @@ class JarvisVoiceBridgeWS:
 
         uri = f"ws://{self._host}:{self._port}/v1/audio/stream"
         attempt = 0
-        last_error: Optional[Exception] = None
+        last_error: Exception | None = None
 
         while attempt <= self._max_retries:
             try:
@@ -516,7 +517,7 @@ class JarvisVoiceBridgeWS:
     # Audio/Text send
     # ------------------------------------------------------------------
 
-    def send_audio(self, pcm_bytes: bytes, is_final: bool = False, session_id: Optional[str] = None) -> None:
+    def send_audio(self, pcm_bytes: bytes, is_final: bool = False, session_id: str | None = None) -> None:
         """Send raw PCM audio bytes to the server."""
         sid = session_id or self._session_id
         if self._ws is None:
@@ -539,7 +540,7 @@ class JarvisVoiceBridgeWS:
         except Exception as exc:
             logger.warning("Failed to send audio frames: %s", exc)
 
-    def send_text(self, text: str, session_id: Optional[str] = None, voice: str = "es_ES-pacifico", speed: float = 1.0) -> None:
+    def send_text(self, text: str, session_id: str | None = None, voice: str = "es_ES-pacifico", speed: float = 1.0) -> None:
         """Send a text chunk for TTS synthesis."""
         sid = session_id or self._session_id
         if self._ws is None:

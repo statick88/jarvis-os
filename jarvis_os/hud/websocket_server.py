@@ -18,11 +18,12 @@ from __future__ import annotations
 import asyncio
 import logging
 import signal
-from typing import Awaitable, Callable, Optional, Set
+from collections.abc import Awaitable, Callable
 
-from jarvis_os.hud.models import HudConfig, HudStatus, WSMessage
 from websockets.asyncio.server import Server, ServerConnection, serve
 from websockets.exceptions import ConnectionClosed
+
+from jarvis_os.hud.models import HudConfig, HudStatus, WSMessage
 
 logger = logging.getLogger(__name__)
 
@@ -46,17 +47,17 @@ class HudWebSocketServer:
 
     def __init__(
         self,
-        config: Optional[HudConfig] = None,
+        config: HudConfig | None = None,
         *,
-        handler: Optional[MessageHandler] = None,
+        handler: MessageHandler | None = None,
     ) -> None:
         self._config = config or HudConfig()
         self._handler = handler
-        self._connections: Set[ServerConnection] = set()
-        self._server: Optional[Server] = None
-        self._loop: Optional[asyncio.AbstractEventLoop] = None
+        self._connections: set[ServerConnection] = set()
+        self._server: Server | None = None
+        self._loop: asyncio.AbstractEventLoop | None = None
         self._status: HudStatus = HudStatus.OFFLINE
-        self._task: Optional[asyncio.Task] = None
+        self._task: asyncio.Task | None = None
         self._signal_handlers: dict = {}
 
     # -- lifecycle ----------------------------------------------------------
@@ -178,7 +179,7 @@ class HudWebSocketServer:
         status: HudStatus,
         summary: str = "",
         *,
-        payload: Optional[dict] = None,
+        payload: dict | None = None,
     ) -> WSMessage:
         """Convenience: broadcast a status update, remember it locally."""
         self._status = status

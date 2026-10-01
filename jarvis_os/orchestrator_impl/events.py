@@ -10,13 +10,11 @@ Event flow::
 
 from __future__ import annotations
 
-import json
 from datetime import datetime, timezone
 from enum import StrEnum
-from typing import Any, Optional
+from typing import Any
 
 from pydantic import BaseModel, Field
-
 
 # ---------------------------------------------------------------------------
 # Enums
@@ -64,10 +62,10 @@ class SkillExecutionComplete(BaseModel):
     output_ref: str = Field(
         default="", description="Vault output path, e.g. vault/outputs/.../skill.md"
     )
-    tts_text: Optional[str] = Field(
+    tts_text: str | None = Field(
         default=None, description="Text to synthesize via TTS, if any"
     )
-    error: Optional[str] = Field(
+    error: str | None = Field(
         default=None, description="Error message when status is FAILED or TIMEOUT"
     )
     timestamp: datetime = Field(

@@ -25,7 +25,7 @@ import re
 from datetime import datetime, timezone
 from enum import StrEnum
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 from pydantic import BaseModel, Field, field_validator
 
@@ -158,7 +158,7 @@ class SkillFrontmatter(BaseModel):
     entrypoint: str = Field(
         default="", description="Handler module/command; derived from id when empty"
     )
-    health: Optional[dict[str, Any]] = Field(
+    health: dict[str, Any] | None = Field(
         default=None, description="Optional HTTP health check configuration"
     )
 
@@ -222,7 +222,7 @@ class SkillMetadata(BaseModel):
     )
 
     @classmethod
-    def from_path(cls, frontmatter: SkillFrontmatter, path: Path) -> "SkillMetadata":
+    def from_path(cls, frontmatter: SkillFrontmatter, path: Path) -> SkillMetadata:
         """Build metadata for a validated frontmatter loaded from ``path``."""
         return cls(
             id=frontmatter.id,
@@ -241,11 +241,11 @@ class SkillExecutionResult(BaseModel):
     status: ExecutionStatus = Field(
         default=ExecutionStatus.PENDING, description="Run lifecycle status"
     )
-    output: Optional[dict[str, Any]] = Field(default=None, description="Structured skill output")
-    error: Optional[str] = Field(default=None, description="Error message on failure")
+    output: dict[str, Any] | None = Field(default=None, description="Structured skill output")
+    error: str | None = Field(default=None, description="Error message on failure")
     duration_ms: float = Field(default=0.0, description="Wall-clock time in ms")
-    started_at: Optional[datetime] = Field(default=None, description="Run start (UTC)")
-    completed_at: Optional[datetime] = Field(default=None, description="Run end (UTC)")
+    started_at: datetime | None = Field(default=None, description="Run start (UTC)")
+    completed_at: datetime | None = Field(default=None, description="Run end (UTC)")
 
     @property
     def ok(self) -> bool:
@@ -258,6 +258,6 @@ class SkillDependency(BaseModel):
 
     skill_id: str = Field(..., description="Dependency skill id")
     required_by: str = Field(..., description="Skill id that depends on it")
-    version_constraint: Optional[str] = Field(
+    version_constraint: str | None = Field(
         default=None, description="Optional semver constraint, e.g. ^1.0.0"
     )

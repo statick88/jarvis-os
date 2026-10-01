@@ -10,7 +10,7 @@ from __future__ import annotations
 import re
 from datetime import datetime, timezone
 from enum import StrEnum
-from typing import Literal, Optional
+from typing import Literal
 from uuid import UUID, uuid4
 
 from pydantic import BaseModel, Field, field_validator
@@ -52,8 +52,8 @@ class SkillContext(BaseModel):
     vault_path: str = Field(default="/app/vault", description="Path to the vault root")
     skills_path: str = Field(default="/app/.skills", description="Path to skills directory")
     session_id: UUID = Field(default_factory=uuid4, description="Session identifier")
-    user_id: Optional[str] = Field(default=None, description="Optional user identifier")
-    trace_id: Optional[UUID] = Field(default=None, description="Optional distributed trace ID")
+    user_id: str | None = Field(default=None, description="Optional user identifier")
+    trace_id: UUID | None = Field(default=None, description="Optional distributed trace ID")
 
 
 class SkillExecutionRequest(BaseModel):
@@ -79,8 +79,8 @@ class SkillExecutionResponse(BaseModel):
     status: Literal["success", "error", "timeout"] = Field(
         ..., description="Execution outcome"
     )
-    result: Optional[dict] = Field(default=None, description="Skill output (on success)")
-    error: Optional[str] = Field(default=None, description="Error message (on failure)")
+    result: dict | None = Field(default=None, description="Skill output (on success)")
+    error: str | None = Field(default=None, description="Error message (on failure)")
     duration_ms: float = Field(default=0.0, description="Execution wall-clock time in ms")
     skill: str = Field(..., description="Skill name that was executed")
     request_id: UUID = Field(..., description="Correlated REQUEST envelope id")

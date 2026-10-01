@@ -24,13 +24,11 @@ from typing import Any
 
 from jarvis_os.vault.links import extract_wikilinks
 from jarvis_os.vault.models import (
-    INDEX_VERSION,
     IndexEntry,
     VaultIndex,
     VaultNote,
     VaultOperationResult,
     VaultParseError,
-    VaultWriteError,
 )
 from jarvis_os.vault.validator import parse_frontmatter_block
 
