@@ -124,47 +124,24 @@ def _median(values: Sequence[float]) -> float:
     return (ordered[mid - 1] + ordered[mid]) / 2
 
 
-def collect_stats(root: Path | str | None = None) -> dict[str, ToolStats]:
-    """Aggregate every verified run directory under *root* into per-skill stats.
+def _verified_receipts(run_dir: Path) -> tuple[list[Any], str | None]:
+    """Return the receipts of one run directory, or a rejection reason.
 
-    A day whose chain fails verification contributes nothing: its receipts are
-    treated as untrusted. This is the whole tamper story, and it is why
-    ``collect_stats`` checks ``verify()`` before reading anything.
-
-    Returns:
-        Mapping of skill id to its observed behaviour. Empty when there is no
-        trustworthy evidence, which callers must handle as "no opinion".
+    Verification happens here and nowhere else, so a caller cannot accidentally
+    learn from an unverified chain.
     """
-    base = Path(root) if root is not None else Path("receipts")
-    if not base.exists():
-        return {}
-
-    buckets: dict[str, list[dict[str, Any]]] = defaultdict(list)
-    rejected: list[str] = []
-
-    for index_path in sorted(base.glob("*/index.jsonl")):
-        run_dir = index_path.parent
-        chain = ReceiptChain(run_dir)
-        try:
-            ok, detail = chain.verify()
-        except ReceiptChainError as exc:  # pragma: no cover - verify() returns
-            ok, detail = False, str(exc)
+    chain = ReceiptChain(run_dir)
+    try:
+        ok, detail = chain.verify()
         if not ok:
-            rejected.append(f"{run_dir.name}: {detail}")
-            continue
-        try:
-            for receipt in chain.read_all():
-                buckets[receipt.tool_name].append(receipt.model_dump())
-        except ReceiptChainError as exc:  # pragma: no cover - verified above
-            rejected.append(f"{run_dir.name}: {exc}")
+            return [], f"{run_dir.name}: {detail}"
+        return list(chain.read_all()), None
+    except ReceiptChainError as exc:
+        return [], f"{run_dir.name}: {exc}"
 
-    if rejected:
-        # Loud, because a rejected run means the audit trail has a hole.
-        logger.warning(
-            "policy: %d receipt run(s) rejected as untrustworthy and excluded "
-            "from learning: %s", len(rejected), "; ".join(rejected),
-        )
 
+def _aggregate(buckets: dict[str, list[dict[str, Any]]]) -> dict[str, ToolStats]:
+    """Reduce per-skill receipt records into observed statistics."""
     stats: dict[str, ToolStats] = {}
     for skill_id, records in buckets.items():
         runs = len(records)
@@ -183,6 +160,42 @@ def collect_stats(root: Path | str | None = None) -> dict[str, ToolStats]:
             failure_rate=round(1 - (successes / runs), 4) if runs else 0.0,
         )
     return stats
+
+
+def collect_stats(root: Path | str | None = None) -> dict[str, ToolStats]:
+    """Aggregate every verified run directory under *root* into per-skill stats.
+
+    A day whose chain fails verification contributes nothing: its receipts are
+    treated as untrusted. This is the whole tamper story, and it is why
+    verification happens in :func:`_verified_receipts` before any record is read.
+
+    Returns:
+        Mapping of skill id to its observed behaviour. Empty when there is no
+        trustworthy evidence, which callers must handle as "no opinion".
+    """
+    base = Path(root) if root is not None else Path("receipts")
+    if not base.exists():
+        return {}
+
+    buckets: dict[str, list[dict[str, Any]]] = defaultdict(list)
+    rejected: list[str] = []
+
+    for index_path in sorted(base.glob("*/index.jsonl")):
+        receipts, reason = _verified_receipts(index_path.parent)
+        if reason is not None:
+            rejected.append(reason)
+            continue
+        for receipt in receipts:
+            buckets[receipt.tool_name].append(receipt.model_dump())
+
+    if rejected:
+        # Loud, because a rejected run means the audit trail has a hole.
+        logger.warning(
+            "policy: %d receipt run(s) rejected as untrustworthy and excluded "
+            "from learning: %s", len(rejected), "; ".join(rejected),
+        )
+
+    return _aggregate(buckets)
 
 
 def score_for(stats: dict[str, ToolStats], skill_id: str) -> float:
