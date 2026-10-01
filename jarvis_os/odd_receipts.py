@@ -9,6 +9,7 @@ being audited, so :func:`record_execution` swallows its own errors and reports
 from __future__ import annotations
 
 import logging
+import os
 import time
 from pathlib import Path
 from typing import Any
@@ -16,6 +17,7 @@ from typing import Any
 from jarvis_os.receipt import (
     Receipt,
     ReceiptChain,
+    ReceiptChainError,
     allowlisted_inputs,
     run_directory,
     summarize_output,
@@ -24,8 +26,13 @@ from jarvis_os.receipt import (
 
 logger = logging.getLogger(__name__)
 
-#: Where receipts land. Overridable so tests never touch the real directory.
-RECEIPTS_ROOT = Path("receipts")
+#: Where receipts land.
+#:
+#: Configurable through ``JARVIS_RECEIPTS_DIR`` because a bare relative default
+#: scatters receipts across whatever cwd the process happened to start in, which
+#: both pollutes checkouts and breaks test isolation. Unset => repository-local
+#: ``receipts/``, which is gitignored.
+RECEIPTS_ROOT = Path(os.getenv("JARVIS_RECEIPTS_DIR", "receipts"))
 
 # Map the executor's own status onto the receipt's closed vocabulary.
 #
@@ -101,6 +108,14 @@ def record_execution(
 
         chain = ReceiptChain(run_directory(receipts_root(base)))
         return chain.append(receipt)
+    except ReceiptChainError as exc:
+        # Distinct from a generic failure: the chain is corrupt, so every
+        # subsequent write would be lost. Say so loudly.
+        logger.error(
+            "RECEIPT CHAIN UNUSABLE for %s — the audit trail is now incomplete: %s",
+            skill_id, exc,
+        )
+        return None
     except Exception:
         logger.warning("receipt emission failed for %s; execution continues", skill_id,
                        exc_info=True)

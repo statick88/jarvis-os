@@ -25,6 +25,7 @@ from jarvis_os import odd_receipts
 from jarvis_os.odd_receipts import record_execution
 from jarvis_os.receipt import (
     GENESIS_HASH,
+    ReceiptChainError,
     INPUT_ALLOWLIST,
     Receipt,
     ReceiptChain,
@@ -558,3 +559,91 @@ def test_utcnow_is_sortable_and_utc() -> None:
     stamp = utcnow_iso()
     assert stamp.endswith("Z")
     assert len(stamp) == len("2026-10-01T00:00:00.000000Z")
+
+
+# ── regressions found by closing the ODD loop ────────────────────────
+
+class TestPoisonedChainIsRefusedLoudly:
+    """A foreign or truncated head must not silently stop the audit trail.
+
+    Found in practice: a receipts file written by an older schema made
+    ``head()`` raise a bare KeyError, which ``record_execution`` swallowed, so
+    every subsequent receipt was dropped with no signal at all.
+    """
+
+    def _bare_line(self, tmp_path: Path) -> Path:
+        """Write a record in the pre-envelope (bare) format."""
+        path = tmp_path / "index.jsonl"
+        path.write_text('{"seq":1,"hash":"a","tool_name":"legacy"}\n')
+        return path
+
+    def test_head_raises_a_typed_error_on_a_bare_record(self, tmp_path: Path) -> None:
+        self._bare_line(tmp_path)
+        with pytest.raises(ReceiptChainError, match="no 'receipt' envelope"):
+            ReceiptChain(tmp_path).head()
+
+    def test_append_refuses_to_extend_a_poisoned_chain(self, tmp_path: Path) -> None:
+        self._bare_line(tmp_path)
+        with pytest.raises(ReceiptChainError):
+            ReceiptChain(tmp_path).append(Receipt(tool_name="new"))
+
+    def test_read_all_raises_instead_of_keyerror(self, tmp_path: Path) -> None:
+        self._bare_line(tmp_path)
+        with pytest.raises(ReceiptChainError):
+            ReceiptChain(tmp_path).read_all()
+
+    def test_head_raises_on_a_truncated_write(self, tmp_path: Path) -> None:
+        (tmp_path / "index.jsonl").write_text('{"receipt": {"tool_name"')
+        with pytest.raises(ReceiptChainError, match="unreadable record"):
+            ReceiptChain(tmp_path).head()
+
+    def test_head_raises_on_a_receipt_that_does_not_fit_the_schema(
+        self, tmp_path: Path
+    ) -> None:
+        (tmp_path / "index.jsonl").write_text(
+            '{"receipt": {"seq": "not-an-int", "hash": "x"}}\n'
+        )
+        with pytest.raises(ReceiptChainError, match="current schema"):
+            ReceiptChain(tmp_path).head()
+
+    def test_verify_reports_a_bare_record_instead_of_a_crash(
+        self, tmp_path: Path
+    ) -> None:
+        self._bare_line(tmp_path)
+        ok, detail = ReceiptChain(tmp_path).verify()
+        assert not ok
+        assert "envelope" in detail
+
+    def test_record_execution_returns_none_and_does_not_raise(
+        self, tmp_path: Path
+    ) -> None:
+        """The audit must not abort the operation, and must not fake success."""
+        # record_execution writes into the daily subdirectory, not the root.
+        run_dir = run_directory(tmp_path)
+        run_dir.mkdir(parents=True, exist_ok=True)
+        self._bare_line(run_dir)
+        assert (
+            record_execution(
+                skill_id="s", input_data={}, result=FakeResult(),
+                started=time.monotonic(), base=tmp_path,
+            )
+            is None
+        )
+
+
+class TestReceiptsRootIsConfigurable:
+    def test_env_var_override(self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+        import importlib
+
+        import jarvis_os.odd_receipts as mod
+
+        monkeypatch.setenv("JARVIS_RECEIPTS_DIR", str(tmp_path))
+        reloaded = importlib.reload(mod)
+        try:
+            assert reloaded.RECEIPTS_ROOT == tmp_path
+        finally:
+            monkeypatch.delenv("JARVIS_RECEIPTS_DIR", raising=False)
+            importlib.reload(mod)
+
+    def test_default_is_repository_relative(self) -> None:
+        assert odd_receipts.RECEIPTS_ROOT.name == "receipts"

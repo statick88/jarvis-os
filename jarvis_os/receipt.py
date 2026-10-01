@@ -200,6 +200,14 @@ class Receipt(BaseModel):
         return canonical_json({"receipt": self.model_dump()})
 
 
+class ReceiptChainError(RuntimeError):
+    """The chain cannot be extended or trusted in its current state.
+
+    Raised instead of a bare KeyError so the failure is actionable: a corrupted
+    or foreign head line must not silently stop the audit trail.
+    """
+
+
 class ReceiptChain:
     """Append-only, hash-chained store rooted at ``root``.
 
@@ -224,8 +232,44 @@ class ReceiptChain:
     def is_frozen(self) -> bool:
         return self.freeze_marker.exists()
 
+    def _read_receipt(self, raw: str) -> Receipt:
+        """Parse one JSONL record, or raise a typed, actionable error.
+
+        A record written by an older schema, a truncated write, or a foreign
+        writer must not surface as KeyError deep inside the caller, because the
+        caller is an audit path that is designed to swallow exceptions. If this
+        raises quietly, the audit trail stops without anyone noticing.
+        """
+        try:
+            record = json.loads(raw)
+        except json.JSONDecodeError as exc:
+            raise ReceiptChainError(
+                f"{self.index_path}: unreadable record ({exc}); "
+                f"run verify() for the exact position, then start a new run "
+                f"directory or repair the file"
+            ) from exc
+        if not isinstance(record, dict) or "receipt" not in record:
+            raise ReceiptChainError(
+                f"{self.index_path}: record has no 'receipt' envelope; this file "
+                f"was written by an incompatible schema version. Do not append "
+                f"to it - start a new run directory so the chain stays auditable"
+            )
+        try:
+            return Receipt(**record["receipt"])
+        except Exception as exc:
+            raise ReceiptChainError(
+                f"{self.index_path}: receipt does not match the current schema; "
+                f"start a new run directory ({exc})"
+            ) from exc
+
     def head(self) -> tuple[int, str]:
-        """Return ``(last_seq, last_hash)``; genesis values when empty."""
+        """Return ``(last_seq, last_hash)``; genesis values when empty.
+
+        Raises:
+            ReceiptChainError: if the last line cannot be parsed. Propagating
+                is deliberate: appending after an unreadable head would fork the
+                audit trail.
+        """
         if not self.index_path.exists():
             return 0, GENESIS_HASH
         last_line = ""
@@ -235,8 +279,8 @@ class ReceiptChain:
                     last_line = line
         if not last_line:
             return 0, GENESIS_HASH
-        receipt = json.loads(last_line)["receipt"]
-        return int(receipt["seq"]), receipt["hash"]
+        receipt = self._read_receipt(last_line)
+        return int(receipt.seq), receipt.hash
 
     def read_all(self) -> list[Receipt]:
         if not self.index_path.exists():
@@ -245,7 +289,7 @@ class ReceiptChain:
         with self.index_path.open("r", encoding="utf-8") as handle:
             for line in handle:
                 if line.strip():
-                    out.append(Receipt(**json.loads(line)["receipt"]))
+                    out.append(self._read_receipt(line))
         return out
 
     # -- writes --------------------------------------------------------
@@ -295,10 +339,9 @@ class ReceiptChain:
                     continue
                 count += 1
                 try:
-                    stored = json.loads(line)["receipt"]
-                except (json.JSONDecodeError, KeyError, TypeError):
-                    return False, f"line {lineno}: unreadable record"
-                receipt = Receipt(**stored)
+                    receipt = self._read_receipt(line)
+                except ReceiptChainError as exc:
+                    return False, f"line {lineno}: {exc}"
                 if receipt.seq != count:
                     return False, (
                         f"line {lineno}: seq {receipt.seq} breaks ordering "

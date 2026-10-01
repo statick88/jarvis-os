@@ -176,3 +176,52 @@ rather than altered:
 98 % is not reachable in one pass; roughly 2 000 further statements need coverage.
 The repo also still has no `requirements.txt`, which is why `aioboto3` is simply
 absent and `floci_client` cannot even be imported.
+
+## ODD Phase 2 — the policy layer (commit pending)
+
+`jarvis_os/policy.py` turns verified receipts into a selection signal. This is
+the first machine-readable feedback the project has; the previous signal was
+`_Nightly_Reports/*.md`, which is prose.
+
+### Three properties, all defensive
+1. **Only verified chains are learned from.** A tampered run directory
+   contributes nothing and logs a warning. This is why `collect_stats()` calls
+   `verify()` before reading a single receipt.
+2. **`MIN_SAMPLES = 5` before a skill earns a non-neutral opinion.** One lucky
+   run is not reliability.
+3. **Shadow by default** (`JARVIS_POLICY_MODE=shadow`). `recommend()` computes
+   and logs the ranking but returns the registry order unchanged, so enabling the
+   policy is never a silent behaviour change.
+
+Dependency direction stays one-way: `skills -> policy -> receipt`.
+
+Coverage: `policy.py` 99.1 %, `receipt.py` 98.9 %, `odd_receipts.py` 100 %.
+Suite 448 -> 486 tests. Global source coverage 55.77 % -> 56.72 %.
+
+### Defects found by actually closing the loop
+
+Running the real executor produced receipts and exposed three bugs that unit
+tests had missed:
+
+1. **A poisoned chain stopped the audit trail silently.** A receipts file
+   written in the pre-envelope format made `head()` raise a bare `KeyError`.
+   `record_execution` is designed to swallow exceptions so that an audit failure
+   cannot abort the operation, which meant every subsequent receipt was dropped
+   with no signal. `head()`/`read_all()` now raise `ReceiptChainError` with an
+   actionable message, and `record_execution` logs that case at ERROR.
+2. **`RECEIPTS_ROOT` was a bare relative path.** Receipts landed wherever the
+   process cwd happened to be, which both scattered the audit trail and broke
+   test isolation. Now read from `JARVIS_RECEIPTS_DIR`.
+3. **Tests polluted the repository.** Any test that executed a skill wrote to
+   `./receipts`. `tests/conftest.py` now redirects the root to a temporary
+   directory for the whole session.
+
+### Real signal the loop produced
+
+21 receipts, chain verified. Five of seven skills fail with
+`No module named 'skill.<name>'` — the declared entrypoints do not match the
+module layout under `jarvis_os/skills/handlers/`. Only `skill-bfla_idor` and
+`skill-obsidian` execute. Those 5 skills are marked `usable: false` (100 %
+failure carries no reliability information, only absence), so the policy leaves
+them at the neutral prior rather than actively avoiding them. Fixing the
+entrypoints is the next concrete ODD task.
