@@ -51,7 +51,7 @@ jobs:
           ls -la coverage/
 
       - name: SonarQube Scan
-        uses: SonarSource/sonarqube-scan-action@v4
+        uses: SonarSource/sonarqube-scan-action@v6
         env:
           # SonarQube 9.9 rejects "Authorization: Bearer"; the token must be sent as
           # the Basic-auth username, i.e. -Dsonar.login, not -Dsonar.token.
