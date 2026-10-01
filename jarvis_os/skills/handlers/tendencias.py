@@ -63,6 +63,10 @@ def _fetch(input_data: dict[str, Any], vault_path: Path) -> dict[str, Any]:
         title = feed if isinstance(feed, str) else feed.get("name", url)
         items_fetched = 0
         items_relevant = 0
+        # Bound before the try: Python unbinds the `except ... as exc` name when
+        # the block ends, so referencing `exc` afterwards raises UnboundLocalError
+        # on the success path whenever a feed yields zero items.
+        feed_error: str | None = None
         try:
             import urllib.request
             import xml.etree.ElementTree as ET
@@ -81,6 +85,7 @@ def _fetch(input_data: dict[str, Any], vault_path: Path) -> dict[str, Any]:
             fetched += items_fetched
             relevant += items_relevant
         except Exception as exc:
+            feed_error = str(exc)
             logger.warning("Failed to fetch feed %s: %s", url, exc)
 
         feeds_processed.append(
@@ -89,7 +94,9 @@ def _fetch(input_data: dict[str, Any], vault_path: Path) -> dict[str, Any]:
                 "title": title,
                 "items_fetched": items_fetched,
                 "items_relevant": items_relevant,
-                "error": None if items_fetched else str(exc),
+                # A feed can be valid and still yield nothing, so distinguish
+                # "the fetch failed" from "the feed was empty".
+                "error": None if items_fetched else (feed_error or "no items returned"),
             }
         )
 

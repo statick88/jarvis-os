@@ -53,3 +53,9 @@ _Nightly_Reports/
 
 # Legacy archive (superseded by openspec/changes/archive/)
 openspec/archived/
+
+# SonarQube coverage report (generated)
+coverage.xml
+
+# RDD execution receipts: per-run process artifacts, never versioned.
+receipts/

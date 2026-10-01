@@ -44,14 +44,17 @@ jobs:
 
       - name: Run tests with coverage
         run: |
-          pytest --cov=src --cov-report=xml --cov-report=term-missing
+          pytest tests/ --cov=. --cov-report=xml --cov-report=term-missing
 
       - name: SonarQube Scan
         uses: SonarSource/sonarqube-scan-action@v4
         env:
-          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          # SonarQube 9.9 rejects "Authorization: Bearer"; the token must be sent as
+          # the Basic-auth username, i.e. -Dsonar.login, not -Dsonar.token.
+          SONAR_LOGIN: ${{ secrets.SONAR_TOKEN }}
         with:
           args: >
+            -Dsonar.login=${{ env.SONAR_LOGIN }}
             -Dsonar.projectKey=${{ env.SONAR_PROJECT_KEY }}-backend
             -Dsonar.organization=${{ env.SONAR_ORGANIZATION }}
             -Dsonar.python.coverage.reportPaths=coverage.xml
@@ -92,9 +95,12 @@ jobs:
       - name: SonarQube Scan
         uses: SonarSource/sonarqube-scan-action@v4
         env:
-          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          # SonarQube 9.9 rejects "Authorization: Bearer"; the token must be sent as
+          # the Basic-auth username, i.e. -Dsonar.login, not -Dsonar.token.
+          SONAR_LOGIN: ${{ secrets.SONAR_TOKEN }}
         with:
           args: >
+            -Dsonar.login=${{ env.SONAR_LOGIN }}
             -Dsonar.projectKey=${{ env.SONAR_PROJECT_KEY }}-frontend
             -Dsonar.organization=${{ env.SONAR_ORGANIZATION }}
             -Dsonar.typescript.lcov.reportPaths=coverage/lcov.info

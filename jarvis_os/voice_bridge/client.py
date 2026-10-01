@@ -23,9 +23,24 @@ from jarvis_os.voice_bridge.models import (
     TranscribeRequest,
     STTResponse,
 )
-from jarvis_os.voice_bridge.gen import voice_api_pb2_grpc
 
 logger = logging.getLogger(__name__)
+
+try:
+    from jarvis_os.voice_bridge.gen import voice_api_pb2_grpc
+
+    GRPC_STUBS_AVAILABLE = True
+except Exception:  # pragma: no cover - depends on the installed protobuf runtime
+    # The generated stubs fail to import for more than a missing module: a
+    # gencode/runtime version mismatch raises protobuf's VersionError. Guard it
+    # so a broken protobuf degrades the gRPC path instead of making the whole
+    # voice_bridge package unimportable.
+    voice_api_pb2_grpc = None
+    GRPC_STUBS_AVAILABLE = False
+    logger.warning(
+        "voice_bridge: gRPC stubs unavailable; "
+        "gRPC methods will raise until the protobuf runtime matches the gencode"
+    )
 
 # gRPC status codes eligible for automatic retry.
 _RETRYABLE_CODES: frozenset[grpc.StatusCode] = frozenset(

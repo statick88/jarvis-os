@@ -47,6 +47,21 @@ def _make_scheduler(**kwargs) -> IdleScheduler:
     return IdleScheduler(check_interval_seconds=0.05, **kwargs)
 
 
+async def _wait_until(predicate, timeout: float = 2.0, interval: float = 0.01) -> bool:
+    """Poll *predicate* until true or *timeout* elapses.
+
+    Fixed ``asyncio.sleep(0.3)`` waits are timing-dependent and flake on a cold
+    interpreter or a loaded machine. Polling the actual condition keeps the
+    assertion identical while removing the race.
+    """
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        if predicate():
+            return True
+        await asyncio.sleep(interval)
+    return predicate()
+
+
 # ── State transitions ────────────────────────────────────────────────
 
 class TestStateTransitions:
@@ -258,7 +273,7 @@ class TestTaskExecution:
         counter: list[int] = []
         s.add_task(lambda: _counting(counter), interval_minutes=0, task_id="c")
         s.start()
-        await asyncio.sleep(0.3)
+        assert await _wait_until(lambda: bool(counter)), "task never ran"
         s.stop()
         assert len(counter) >= 1
         task = s._tasks["c"]
@@ -270,7 +285,9 @@ class TestTaskExecution:
         s = _make_scheduler(active_hours_start=0, active_hours_end=24)
         s.add_task(_failing, interval_minutes=0, task_id="fail")
         s.start()
-        await asyncio.sleep(0.3)
+        assert await _wait_until(
+            lambda: s._tasks["fail"].last_error is not None
+        ), "task error was never recorded"
         s.stop()
         task = s._tasks["fail"]
         assert task.last_error == "simulated failure"

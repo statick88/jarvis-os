@@ -3,15 +3,21 @@
 ## Current Status
 - **SonarQube**: Running on `http://localhost:9000` (VPS)
 - **Project Key**: `jarvis-os`
-- **Scanner Token**: `squ_583d17a1ddcbd7c55bb84514400cd09a8afb1031`
+- **Scanner Token**: `$SONAR_TOKEN`
 - **Scanner**: SonarScanner 5.x with Java 17
 
 ## SonarQube Configuration
 
 ### Server Access
-- **URL**: `http://vps.tailb05787.ts.net:9000` (via Tailscale)
-- **Admin**: `admin` / `SonarQube2026!`
-- **Scanner Token**: `squ_583d17a1ddcbd7c55bb84514400cd09a8afb1031`
+- **URL**: `http://100.65.184.25:9000` (Tailscale only; not published on the public interface)
+- **Admin**: `admin` / stored in GitHub secret `SONAR_ADMIN_PASSWORD` (rotated 2026-09-25)
+- **Scanner Token**: `$SONAR_TOKEN` (GitHub secret)
+
+> **Auth quirk (verified 2026-09-25).** SonarQube 9.9.8 rejects `Authorization: Bearer <token>` and
+> answers `401`, even when the token is valid and present in the database. The token must be sent as the
+> **Basic-auth username**, so use `-Dsonar.login=$SONAR_TOKEN` and never `-Dsonar.token=`.
+> Quick check: `curl -u "$SONAR_TOKEN:" http://100.65.184.25:9000/api/system/status` → `200`.
+> The `sonarqube-quality-gate-action` step keeps its contractual `SONAR_TOKEN` env name.
 
 ### Project Configuration
 ```properties
@@ -25,7 +31,7 @@ sonar.python.coverage.reportPaths=coverage.xml
 sonar.exclusions=**/tests/**,**/migrations/**,**/alembic/**,**/__pycache__/**,**/__init__.py
 sonar.python.coverage.reportPaths=coverage.xml
 sonar.host.url=http://localhost:9000
-sonar.login=squ_583d17a1ddcbd7c55bb84514400cd09a8afb1031
+sonar.login=$SONAR_TOKEN
 ```
 
 ## Quality Gate Configuration
@@ -155,7 +161,7 @@ sonar.python.coverage.reportPaths=coverage.xml
 sonar.exclusions=**/tests/**,**/migrations/**,**/alembic/**,**/__pycache__/**,**/__init__.py
 sonar.python.coverage.reportPaths=coverage.xml
 sonar.host.url=http://vps.tailb05787.ts.net:9000
-sonar.login=squ_583d17a1ddcbd7c55bb84514400cd09a8afb1031
+sonar.login=$SONAR_TOKEN
 ```
 
 ### Run Scan Locally
@@ -170,7 +176,7 @@ sonar-scanner \
   -Dsonar.sources=jarvis_os \
   -Dsonar.tests=tests \
   -Dsonar.host.url=http://vps.tailb05787.ts.net:9000 \
-  -Dsonar.login=squ_583d17a1ddcbd7c55bb84514400cd09a8afb1031 \
+  -Dsonar.login=$SONAR_TOKEN \
   -Dsonar.python.coverage.reportPaths=coverage.xml \
   -Dsonar.exclusions=**/tests/**,**/migrations/**,**/alembic/**,**/__pycache__/**,**/__init__.py
 ```
@@ -179,7 +185,7 @@ sonar-scanner \
 
 | Secret | Value | Description |
 |--------|-------|-------------|
-| `SONAR_TOKEN` | `squ_583d17a1ddcbd7c55bb84514400cd09a8afb1031` | SonarQube scanner token |
+| `SONAR_TOKEN` | `$SONAR_TOKEN` | SonarQube scanner token |
 | `SONAR_HOST_URL` | `http://vps.tailb05787.ts.net:9000` | SonarQube server URL |
 
 ## Quality Gate Status Check
