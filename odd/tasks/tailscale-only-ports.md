@@ -216,12 +216,45 @@ tests had missed:
    `./receipts`. `tests/conftest.py` now redirects the root to a temporary
    directory for the whole session.
 
-### Real signal the loop produced
+### Real signal the loop produced (corrected)
 
-21 receipts, chain verified. Five of seven skills fail with
-`No module named 'skill.<name>'` — the declared entrypoints do not match the
-module layout under `jarvis_os/skills/handlers/`. Only `skill-bfla_idor` and
-`skill-obsidian` execute. Those 5 skills are marked `usable: false` (100 %
-failure carries no reliability information, only absence), so the policy leaves
-them at the neutral prior rather than actively avoiding them. Fixing the
-entrypoints is the next concrete ODD task.
+An earlier revision of this document reported that "five of seven skills fail
+with `No module named 'skill.<name>'` because the declared entrypoints do not
+match the module layout". **That was wrong, and it was my own error, not a
+defect in the code.** The throwaway script that produced the receipts passed
+`entrypoint=skill.frontmatter.entrypoint or skill.id`, and the skill id
+(`skill.bandeja`) is not an importable module. Letting the executor fall back to
+`SkillFrontmatter.default_entrypoint` works correctly for all seven skills: it
+strips the `skill.` prefix, producing a bare name that
+`_import_handler` resolves to `jarvis_os.skills.handlers.<name>`, and all seven
+handler modules exist.
+
+Lesson recorded because it matters: I reported a code defect before checking it,
+and the "evidence" was my own harness. The receipt chain faithfully recorded a
+real run — of a script that was wrong.
+
+With the entrypoint resolved correctly, 42 receipts over 6 runs per skill, chain
+verified, and all seven skills are `usable: true` with p95 latencies from 0.3 ms
+(`skill-bfla_idor`) to 34.5 s (`skill.tendencias`). That spread is exactly the
+kind of signal the policy exists to surface.
+
+### Genuine defect found in the same pass
+
+`jarvis_os/skills/handlers/tendencias.py` referenced the ``except ... as exc``
+name *after* the except block:
+
+```python
+except Exception as exc:
+    logger.warning(...)
+feeds_processed.append({..., "error": None if items_fetched else str(exc)})
+```
+
+Python unbinds the ``as exc`` name when the except block ends, so the reference
+raised `UnboundLocalError` on the success path of any feed that yielded zero
+items — a valid, reachable case, and a crash rather than a reported error. The
+ternary hid it whenever items were fetched, which is why it survived.
+
+Fixed by binding `feed_error` before the try and distinguishing "the fetch
+failed" from "the feed was valid but empty". Covered by
+`tests/handlers/test_tendencias.py`, whose bite was verified: reverting the fix
+fails 5 of its 6 tests, restoring it passes all 6.
