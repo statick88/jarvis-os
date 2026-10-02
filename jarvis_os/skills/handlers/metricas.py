@@ -10,7 +10,7 @@ from __future__ import annotations
 import logging
 import subprocess
 import time
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -50,7 +50,7 @@ def run(input_data: dict[str, Any]) -> dict[str, Any]:
         vault_changes: list[dict[str, Any]] = []
         if action in {"report", "collect"} and output_format == "markdown":
             md = _format_markdown(data)
-            today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+            today = datetime.now(UTC).strftime("%Y-%m-%d")
             out_path = vault_path / "wiki" / f"metricas_{today}.md"
             try:
                 out_path.parent.mkdir(parents=True, exist_ok=True)
@@ -221,7 +221,7 @@ def _frontmatter(note_id: str, tags: list[str], vault_path: Path) -> str:
 
 
 def _now_iso() -> str:
-    return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    return datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
 def _sh(cmd: str) -> str:

@@ -24,7 +24,7 @@ import json
 import os
 import re
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Literal
 
@@ -68,7 +68,7 @@ MAX_STRING_CHARS = 512
 
 def utcnow_iso() -> str:
     """Timestamp with microsecond precision, UTC, lexicographically sortable."""
-    return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%fZ")
+    return datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%S.%fZ")
 
 
 def canonical_json(payload: Any) -> str:
@@ -357,7 +357,7 @@ class ReceiptChain:
 
 def run_directory(root: Path | str, *, now: datetime | None = None) -> Path:
     """Daily run directory. A process artifact: gitignored by design."""
-    moment = now or datetime.now(timezone.utc)
+    moment = now or datetime.now(UTC)
     return Path(root) / moment.strftime("%Y-%m-%d")
 
 

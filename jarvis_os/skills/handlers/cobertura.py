@@ -13,7 +13,6 @@ from __future__ import annotations
 
 import json
 import logging
-from pathlib import Path
 from typing import Any
 
 logger = logging.getLogger(__name__)
@@ -131,7 +130,7 @@ def run(input_data: dict[str, Any]) -> dict[str, Any]:
                 "success": True,
                 "data": {
                     "target": module,
-                    "command": f"pytest tests/ --cov=jarvis_os --cov-report=term-missing",
+                    "command": "pytest tests/ --cov=jarvis_os --cov-report=term-missing",
                     "requirement": (
                         "Revert the change once and confirm the new test fails. "
                         "A test that has never failed is not a test."

@@ -1,0 +1,60 @@
+jarvis_os/core/scheduler.py: ASYNC230 Async functions should not open files with blocking methods like `open`
+jarvis_os/core/scheduler.py: DTZ005 `datetime.datetime.now()` called without a `tz` argument
+jarvis_os/core/scheduler.py: DTZ005 `datetime.datetime.now()` called without a `tz` argument
+jarvis_os/core/scheduler.py: RUF006 Store a reference to the return value of `asyncio.create_task`
+jarvis_os/core/scheduler.py: UP042 Class SchedulerState inherits from both `str` and `enum.Enum`
+jarvis_os/floci_client/client.py: B007 Loop control variable `bucket_type` not used within loop body
+jarvis_os/floci_client/client.py: B007 Loop control variable `bucket_type` not used within loop body
+jarvis_os/floci_client/client.py: B007 Loop control variable `queue_type` not used within loop body
+jarvis_os/floci_client/client.py: B007 Loop control variable `queue_type` not used within loop body
+jarvis_os/floci_client/models.py: UP042 Class BucketType inherits from both `str` and `enum.Enum`
+jarvis_os/floci_client/models.py: UP042 Class SQSQueue inherits from both `str` and `enum.Enum`
+jarvis_os/opencode_adapter/client.py: RUF006 Store a reference to the return value of `asyncio.create_task`
+jarvis_os/opencode_adapter/client.py: RUF006 Store a reference to the return value of `asyncio.create_task`
+jarvis_os/opencode_adapter/client.py: RUF006 Store a reference to the return value of `asyncio.create_task`
+jarvis_os/opencode_adapter/client.py: RUF006 Store a reference to the return value of `asyncio.create_task`
+jarvis_os/orchestrator_impl/__init__.py: F401 `jarvis_os.orchestrator_impl.errors.IntentAnalysisError` imported but unused; consider removing, adding to `__all__`, or using a redundant alias
+jarvis_os/orchestrator_impl/intent.py: RUF012 Mutable default value for class attribute
+jarvis_os/orchestrator_impl/pipeline.py: RUF006 Store a reference to the return value of `asyncio.ensure_future`
+jarvis_os/orchestrator.py: ASYNC240 Async functions should not perform blocking pathlib.Path operations
+jarvis_os/orchestrator.py: ASYNC240 Async functions should not perform blocking pathlib.Path operations
+jarvis_os/orchestrator.py: PLW0603 Using the global statement to update `_hud_server` is discouraged
+jarvis_os/orchestrator.py: PLW0603 Using the global statement to update `_hud_server` is discouraged
+jarvis_os/orchestrator.py: PLW0603 Using the global statement to update `_idle_scheduler` is discouraged
+jarvis_os/orchestrator.py: PLW0603 Using the global statement to update `_pipeline` is discouraged
+jarvis_os/orchestrator.py: PLW0603 Using the global statement to update `_tts_session_opened` is discouraged
+jarvis_os/orchestrator.py: PLW0603 Using the global statement to update `_voice_client` is discouraged
+jarvis_os/orchestrator.py: PLW0603 Using the global statement to update `_voice_client` is discouraged
+jarvis_os/skills/executor.py: ASYNC109 Async function definition with a `timeout` parameter
+jarvis_os/skills/executor.py: ASYNC109 Async function definition with a `timeout` parameter
+jarvis_os/skills/executor.py: ASYNC109 Async function definition with a `timeout` parameter
+jarvis_os/skills/executor.py: ASYNC109 Async function definition with a `timeout` parameter
+jarvis_os/skills/executor.py: ASYNC109 Async function definition with a `timeout` parameter
+jarvis_os/skills/handlers/boveda.py: E741 Ambiguous variable name: `l`
+jarvis_os/skills/handlers/metricas.py: PLW1510 `subprocess.run` without explicit `check` argument
+jarvis_os/skills/nightly_labs.py: ASYNC109 Async function definition with a `timeout` parameter
+jarvis_os/skills/nightly_labs.py: ASYNC109 Async function definition with a `timeout` parameter
+jarvis_os/skills/nightly_labs.py: ASYNC109 Async function definition with a `timeout` parameter
+jarvis_os/skills/nightly_labs.py: ASYNC109 Async function definition with a `timeout` parameter
+jarvis_os/skills/nightly_labs.py: ASYNC240 Async functions should not perform blocking pathlib.Path operations
+jarvis_os/skills/nightly_labs.py: ASYNC240 Async functions should not perform blocking pathlib.Path operations
+jarvis_os/skills/nightly_labs.py: ASYNC240 Async functions should not perform blocking pathlib.Path operations
+jarvis_os/skills/nightly_labs.py: F841 Local variable `extraction_results` is assigned to but never used
+jarvis_os/skills/nightly_labs.py: G004 Logging statement uses f-string
+jarvis_os/skills/nightly_labs.py: G004 Logging statement uses f-string
+jarvis_os/skills/nightly_labs.py: G004 Logging statement uses f-string
+jarvis_os/skills/nightly_labs.py: G004 Logging statement uses f-string
+jarvis_os/skills/nightly_labs.py: G201 Logging `.exception(...)` should be used instead of `.error(..., exc_info=True)`
+jarvis_os/skills/nightly_labs.py: PLW1510 `subprocess.run` without explicit `check` argument
+jarvis_os/skills/plugin_registry.py: ASYNC240 Async functions should not perform blocking pathlib.Path operations
+jarvis_os/skills/plugin_registry.py: ASYNC240 Async functions should not perform blocking pathlib.Path operations
+jarvis_os/skills/sandbox.py: ASYNC109 Async function definition with a `timeout` parameter
+jarvis_os/vault/indexer.py: F841 Local variable `size_bytes` is assigned to but never used
+jarvis_os/voice_bridge/client.py: ASYNC109 Async function definition with a `timeout` parameter
+jarvis_os/voice_bridge/client.py: RUF006 Store a reference to the return value of `asyncio.create_task`
+jarvis_os/voice_bridge/client.py: RUF006 Store a reference to the return value of `asyncio.create_task`
+jarvis_os/voice_bridge/client.py: RUF006 Store a reference to the return value of `asyncio.create_task`
+jarvis_os/voice_bridge/orchestrator_client.py: ASYNC109 Async function definition with a `timeout` parameter
+jarvis_os/voice_bridge/orchestrator_client.py: B007 Loop control variable `sid` not used within loop body
+jarvis_os/voice_bridge/orchestrator_client.py: B904 Within an `except` clause, raise exceptions with `raise ... from err` or `raise ... from None` to distinguish them from errors in exception handling
+jarvis_os/voice_bridge/server.py: ASYNC109 Async function definition with a `timeout` parameter

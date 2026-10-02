@@ -17,7 +17,7 @@ import os
 import time
 import uuid
 from collections import defaultdict
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 import uvicorn
@@ -217,7 +217,7 @@ class WhisperSTTPipeline:
         """Get next STT result from whisper-cli."""
         try:
             return await asyncio.wait_for(self._queue.get(), timeout=timeout)
-        except asyncio.TimeoutError:
+        except TimeoutError:
             return None
 
     async def finalize_session(self, session_id: str) -> None:
@@ -241,7 +241,7 @@ class WhisperSTTPipeline:
                 pass
             try:
                 await asyncio.wait_for(self._process.wait(), timeout=5)
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 if self._process.returncode is None:
                     self._process.kill()
 
@@ -290,7 +290,7 @@ class ChunkedTTSPipeline:
                 return audio
         except FileNotFoundError:
             logger.debug("piper not available")
-        except asyncio.TimeoutError:
+        except TimeoutError:
             logger.warning("piper synthesis timed out")
         except Exception as exc:
             logger.debug("piper synthesis failed: %s", exc)
@@ -314,7 +314,7 @@ class ChunkedTTSPipeline:
                 return audio
         except FileNotFoundError:
             logger.debug("kokoro not available")
-        except asyncio.TimeoutError:
+        except TimeoutError:
             logger.warning("kokoro synthesis timed out")
         except Exception as exc:
             logger.debug("kokoro synthesis failed: %s", exc)
@@ -338,7 +338,7 @@ async def health() -> JSONResponse:
     return JSONResponse({
         "status": "ok",
         "service": "voice-pipeline",
-        "timestamp": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "timestamp": datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ"),
         "websocket_enabled": True,
         "active_sessions": session_manager.active_count(),
     })

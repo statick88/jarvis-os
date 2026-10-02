@@ -5,7 +5,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import platform
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 from jarvis_os.skills.base import BaseSkill, SkillPermission
@@ -83,7 +83,7 @@ class OSControlSkill(BaseSkill):
         if "all" in requested:
             requested = ["cpu", "ram", "disk"]
 
-        result: dict[str, Any] = {"timestamp": datetime.now(timezone.utc).isoformat(), "metrics": {}}
+        result: dict[str, Any] = {"timestamp": datetime.now(UTC).isoformat(), "metrics": {}}
 
         if "cpu" in requested:
             if _PSUTIL_AVAILABLE:
@@ -132,6 +132,6 @@ class OSControlSkill(BaseSkill):
                 "returncode": exec_result["returncode"],
                 "stdout": exec_result["stdout"],
                 "stderr": exec_result["stderr"],
-                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "timestamp": datetime.now(UTC).isoformat(),
             },
         }

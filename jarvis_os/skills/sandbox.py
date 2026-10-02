@@ -61,7 +61,7 @@ class CommandSandbox:
                 "stdout": stdout.decode(errors="replace"),
                 "stderr": stderr.decode(errors="replace"),
             }
-        except asyncio.TimeoutError:
+        except TimeoutError:
             if proc is not None:
                 proc.kill()
             raise TimeoutError(

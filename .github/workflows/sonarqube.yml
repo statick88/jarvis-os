@@ -48,14 +48,21 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt -r requirements-dev.txt
 
-      - name: Run tests with coverage
-        # The XML must be regenerated here, never reused from a previous run.
-        # A stale coverage.xml is not cosmetic: SonarQube aborts the whole
-        # analysis with "Line N is out of range in the file X" when a line it
-        # references no longer exists, which is exactly what happened when a
-        # report from before a deletion was reused.
+      - name: Download coverage from the test job
+        # Reusing the CI job's report instead of regenerating it. Two reports
+        # from two runs are two chances for them to disagree, and the failure
+        # mode is silent: SonarQube attributes coverage to the wrong lines.
+        uses: actions/download-artifact@v4
+        with:
+          name: coverage
+
+      - name: Verify coverage is present
+        # A missing or empty report makes SonarQube record zero coverage rather
+        # than failing, which turns a broken pipeline into a green one with a
+        # misleading number.
         run: |
-          pytest tests/ --cov=jarvis_os --cov-report=xml --cov-report=term-missing
+          test -s coverage.xml || { echo "::error::coverage.xml missing or empty"; exit 1; }
+          echo "coverage.xml: $(wc -c < coverage.xml) bytes"
 
       - name: SonarQube scan
         # Pinned to v6.0.0, not floating on @main or @v4.

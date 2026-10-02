@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import logging
 import re
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -64,7 +64,7 @@ def _create_note(input_data: dict[str, Any], vault_path: Path) -> dict[str, Any]
     title = input_data.get("title", "")
     content = input_data.get("content", "")
     tags = input_data.get("tags", [])
-    ts = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    ts = datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
     tags_yaml = yaml.dump({"tags": tags}, default_flow_style=False).strip()
     frontmatter = f"---\ntitle: {title}\n{tags_yaml}\ncreated: {ts}\nmodified: {ts}\n---\n\n"
     body = f"# {title}\n\n{content}\n"

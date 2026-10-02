@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import logging
 import re
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -29,7 +29,7 @@ def run(input_data: dict[str, Any]) -> dict[str, Any]:
     """
     action = input_data.get("action", "read")
     vault_path = Path(input_data.get("context", {}).get("vault_path", "/app/vault"))
-    date_str = input_data.get("date", datetime.now(timezone.utc).strftime("%Y-%m-%d"))
+    date_str = input_data.get("date", datetime.now(UTC).strftime("%Y-%m-%d"))
 
     try:
         if action == "create":
@@ -147,7 +147,7 @@ def _create(vault_path: Path, date_str: str, replace_all: bool = False) -> dict[
     path = _plan_path(vault_path, date_str)
     if path.exists() and not replace_all:
         return {"success": False, "error": "PLAN_EXISTS", "data": {"path": str(path.relative_to(vault_path))}}
-    ts = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    ts = datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
     content = "\n".join([
         "---",
         f"id: plan_{date_str}",
@@ -186,7 +186,7 @@ def _add_task(input_data: dict[str, Any], vault_path: Path, date_str: str) -> di
     emoji = _PRIORITY_EMOJI.get(priority, "🟡")
     task_counter = len(plan.get("tasks", [])) + 1
     task_id = f"tsk-{task_counter:03d}"
-    ts = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    ts = datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
     line = f"- [ ] **{task_id}** {emoji} {text} — *{ts}*"
 
     path = _plan_path(vault_path, date_str)
@@ -220,7 +220,7 @@ def _add_blocker(input_data: dict[str, Any], vault_path: Path, date_str: str) ->
     text = input_data.get("blocker", "").strip()
     if not text:
         return {"success": False, "error": "Blocker text cannot be empty"}
-    ts = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    ts = datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
     blocker_id = f"blk-{len(_read_plan(vault_path, date_str).get('blockers', [])) + 1:03d}"
     line = f"- **{blocker_id}** ⏳ {text} — *{ts}*"
     path = _plan_path(vault_path, date_str)

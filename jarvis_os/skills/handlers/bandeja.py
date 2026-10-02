@@ -10,7 +10,7 @@ from __future__ import annotations
 import logging
 import re
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -32,7 +32,7 @@ def run(input_data: dict[str, Any]) -> dict[str, Any]:
     """
     action = input_data.get("action", "capture")
     vault_path = Path(input_data.get("context", {}).get("vault_path", "/app/vault"))
-    date_str = input_data.get("date", datetime.now(timezone.utc).strftime("%Y-%m-%d"))
+    date_str = input_data.get("date", datetime.now(UTC).strftime("%Y-%m-%d"))
 
     try:
         if action == "capture":
@@ -70,7 +70,7 @@ def _capture(input_data: dict[str, Any], vault_path: Path, date_str: str) -> dic
     author = metadata.get("author", "")
 
     item_id = str(uuid.uuid4())
-    ts = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    ts = datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
     emoji = {"urgent": "🔴", "high": "🟠", "medium": "🟡", "low": "🟢"}.get(priority, "🟡")
 
     tags_str = " ".join(f"#{t}" for t in tags)
@@ -140,7 +140,7 @@ def _clear(vault_path: Path, date_str: str) -> dict[str, Any]:
 
 
 def _frontmatter(note_id: str, tags: list[str], vault_path: Path, **kwargs: Any) -> str:
-    ts = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    ts = datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
     lines = ["---", f"id: {note_id}", f"tags: {tags}", f"created: \"{ts}\"", f"modified: \"{ts}\"", "source: \"skill.bandeja\""]
     for k, v in kwargs.items():
         lines.append(f"{k}: \"{v}\"")

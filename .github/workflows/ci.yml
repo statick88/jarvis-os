@@ -1,0 +1,172 @@
+# Continuous integration for jarvis-os.
+#
+# Replaces ci-server.yml and ci-mobile.yml. Both were written for repositories
+# that do not exist (jarvis-server, jarvis-mobile) and assumed a monorepo layout
+# with ./backend and ./frontend. Neither directory has ever existed here, so
+# every job failed in 0s before running a single command. The frontend job also
+# assumed a Node/TypeScript toolchain while jarvis_ui/ has always been Flutter.
+#
+# Every command below was run locally before being written here. That is the
+# whole point: the previous pipeline was never green because nobody executed it.
+#
+# Gates are ratchets, not aspirations:
+#   ruff     fails on any finding not listed in .quality/ruff-baseline.txt
+#   coverage fails below 57%, the measured floor
+# Both are enforced as floors so they can only improve, and both name the real
+# target (80% coverage, zero lint findings) in a comment rather than pretending
+# to be there.
+
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint:
+    name: Lint (ruff ratchet)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+
+      - name: Install ruff
+        run: pip install ruff==0.16.10
+
+      - name: Fail on findings outside the baseline
+        # A count-based gate lets one new finding be traded for one fixed
+        # finding, so regressions hide inside improvements. Diffing the exact
+        # finding list means a new rule violation is always visible, even if
+        # the total went down.
+        run: |
+          set -uo pipefail
+          ruff check jarvis_os/ --output-format concise 2>&1 \
+            | grep -E '^jarvis_os/.*: [A-Z]+[0-9]+' \
+            | sed 's/:[0-9]*:[0-9]*:/:/' \
+            | sort > /tmp/ruff-current.txt || true
+
+          echo "baseline: $(wc -l < .quality/ruff-baseline.txt) findings"
+          echo "current:  $(wc -l < /tmp/ruff-current.txt) findings"
+
+          NEW=$(comm -13 .quality/ruff-baseline.txt /tmp/ruff-current.txt)
+          if [ -n "$NEW" ]; then
+            echo "::error::new lint findings not in the baseline:"
+            echo "$NEW"
+            echo
+            echo "Either fix them, or -- if the finding is a false positive or a"
+            echo "style rule you do not want -- record the decision in ruff.toml."
+            echo "Do not silence them by widening the baseline without a reason."
+            exit 1
+          fi
+
+          echo "no new lint findings"
+
+  test:
+    name: Test (pytest + coverage ratchet)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt -r requirements-dev.txt
+
+      - name: Run tests
+        # 57% is the measured floor as of this commit. The target is 80%, which
+        # is what the SonarQube quality gate expects. The gap is real and
+        # visible in the SonarQube dashboard; the floor exists so coverage
+        # cannot silently regress while it is being closed.
+        #
+        # Regenerate coverage.xml on every run. A stale report is not
+        # cosmetic: SonarQube aborts the whole analysis with "Line N is out of
+        # range in the file X" when a referenced line no longer exists.
+        run: |
+          pytest tests/ --cov=jarvis_os --cov-report=xml --cov-report=term-missing \
+            --cov-fail-under=57
+
+      - name: Upload coverage for SonarQube
+        # The SAST workflow runs in a separate job and needs this artifact,
+        # because regenerating coverage twice per run only invites the two
+        # reports to disagree.
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage
+          path: coverage.xml
+          retention-days: 1
+
+  skills:
+    name: Skills load and dispatch
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+
+      - run: pip install -r requirements.txt -r requirements-dev.txt
+
+      - name: Every skill file must load
+        # A skill with valid YAML is not a working skill. SkillFrontmatter
+        # enforces the id pattern ^skill\.[a-z][a-z0-9_]*$ and the capability
+        # pattern ^[a-z]+\.[a-z_]+$, and two rules that look reasonable fail
+        # both: a hyphenated id, and a capability containing a digit. The
+        # handler is checked too, because a skill without one registers
+        # cleanly and then fails at execute time.
+        run: |
+          python - <<'PY'
+          import asyncio
+          from pathlib import Path
+          from jarvis_os.skills.registry import SkillRegistry
+
+          async def main() -> None:
+              reg = SkillRegistry(skills_dir=Path(".skills"))
+              count = await reg.load_from_directory()
+              print(f"{count} skills loaded")
+
+              missing = []
+              for skill_id, meta in sorted(reg._skills.items()):
+                  # Mirror the executor's precedence exactly:
+                  #   entrypoint or frontmatter.entrypoint or default_entrypoint
+                  # Checking only default_entrypoint reports a false failure for
+                  # skill-bfla_idor, which declares entrypoint "bffla_idor" with a
+                  # double f, and a false pass for any skill whose declared
+                  # entrypoint points somewhere the default would not reach.
+                  entry = (
+                      meta.frontmatter.entrypoint
+                      or meta.frontmatter.default_entrypoint
+                  )
+                  handler = Path("jarvis_os/skills/handlers") / f"{entry}.py"
+                  status = "ok" if handler.exists() else "MISSING HANDLER"
+                  if not handler.exists():
+                      missing.append(f"{skill_id} -> {handler}")
+                  print(f"  {skill_id:36} -> {entry}.py  {status}")
+
+              if missing:
+                  raise SystemExit(
+                      "skills without a handler:\n  " + "\n  ".join(missing)
+                  )
+
+          asyncio.run(main())
+          PY

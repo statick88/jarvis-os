@@ -16,7 +16,7 @@ from __future__ import annotations
 
 import json
 import logging
-from datetime import datetime
+from datetime import UTC, datetime
 from pathlib import Path
 
 from jarvis_os.vault.models import (
@@ -261,9 +261,8 @@ class KnowledgeGraphBuilder:
 
 
 def _now_utc() -> datetime:
-    from datetime import timezone
 
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 def asyncio_import():

@@ -22,7 +22,7 @@ from __future__ import annotations
 
 import logging
 import re
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from enum import StrEnum
 from pathlib import Path
 from typing import Any
@@ -218,7 +218,7 @@ class SkillMetadata(BaseModel):
     path: Path = Field(..., description="Path of the .skills/*.md file")
     frontmatter: SkillFrontmatter = Field(..., description="Validated frontmatter")
     loaded_at: datetime = Field(
-        default_factory=lambda: datetime.now(timezone.utc), description="Load timestamp (UTC)"
+        default_factory=lambda: datetime.now(UTC), description="Load timestamp (UTC)"
     )
 
     @classmethod

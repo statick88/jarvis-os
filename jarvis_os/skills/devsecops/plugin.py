@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import logging
 import os
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 from jarvis_os.skills.base import BaseSkill, SkillPermission
@@ -122,7 +122,7 @@ class DevSecOpsSkill(BaseSkill):
                 "scan_type": scan_type,
                 "findings": [],
                 "summary": "No security issues found (placeholder scan)",
-                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "timestamp": datetime.now(UTC).isoformat(),
             },
         }
 
@@ -134,7 +134,7 @@ class DevSecOpsSkill(BaseSkill):
                 "target": target,
                 "vulnerabilities": [],
                 "summary": "No vulnerabilities detected (placeholder check)",
-                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "timestamp": datetime.now(UTC).isoformat(),
             },
         }
 
@@ -145,8 +145,8 @@ class DevSecOpsSkill(BaseSkill):
             "result": {
                 "pipeline": pipeline,
                 "status": "triggered",
-                "run_id": f"run-{datetime.now(timezone.utc).strftime('%Y%m%d%H%M%S')}",
-                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "run_id": f"run-{datetime.now(UTC).strftime('%Y%m%d%H%M%S')}",
+                "timestamp": datetime.now(UTC).isoformat(),
             },
         }
 

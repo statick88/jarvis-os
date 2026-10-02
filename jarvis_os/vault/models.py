@@ -12,7 +12,7 @@ from __future__ import annotations
 
 import logging
 import re
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from enum import StrEnum
 from pathlib import Path
 from typing import Any
@@ -250,7 +250,7 @@ class VaultIndex(BaseModel):
 
     version: int = Field(default=INDEX_VERSION, description="Index format version")
     updated_at: datetime = Field(
-        default_factory=lambda: datetime.now(timezone.utc), description="Index build time (UTC)"
+        default_factory=lambda: datetime.now(UTC), description="Index build time (UTC)"
     )
     files: dict[str, IndexEntry] = Field(
         default_factory=dict, description="Mapping of note id to index entry"
@@ -385,7 +385,7 @@ class VaultChange(BaseModel):
     rel_path: str | None = Field(default=None, description="Affected file, if any")
     detail: str = Field(default="", description="Human-readable detail")
     timestamp: datetime = Field(
-        default_factory=lambda: datetime.now(timezone.utc), description="Change time (UTC)"
+        default_factory=lambda: datetime.now(UTC), description="Change time (UTC)"
     )
 
 

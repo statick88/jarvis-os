@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import logging
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -83,7 +83,7 @@ class ObsidianSkill(BaseSkill):
         content = params.get("content", "")
         tags = params.get("tags", [])
         links = params.get("links", [])
-        ts = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+        ts = datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
         frontmatter = f"---\ntitle: {title}\ntags: {tags}\ncreated: {ts}\nmodified: {ts}\n---\n\n"
         body = f"# {title}\n\n{content}\n"
         if links:

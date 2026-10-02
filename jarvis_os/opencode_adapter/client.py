@@ -223,7 +223,7 @@ class OpenCodeClient:
             await self._send_ws(envelope)
             timeout = self._config.heartbeat_timeout
             return await asyncio.wait_for(future, timeout=timeout)
-        except asyncio.TimeoutError:
+        except TimeoutError:
             self._pending.pop(str(envelope.id), None)
             # Attempt HTTP fallback
             logger.warning(

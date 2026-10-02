@@ -8,7 +8,7 @@ All messages flow through a typed envelope with correlation by UUID.
 from __future__ import annotations
 
 import re
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from enum import StrEnum
 from typing import Literal
 from uuid import UUID, uuid4
@@ -32,7 +32,7 @@ class Envelope(BaseModel):
 
     id: UUID = Field(default_factory=uuid4, description="Unique message identifier")
     timestamp: datetime = Field(
-        default_factory=lambda: datetime.now(timezone.utc),
+        default_factory=lambda: datetime.now(UTC),
         description="ISO 8601 UTC timestamp",
     )
     type: MessageType = Field(..., description="Message type discriminator")
@@ -125,7 +125,7 @@ class Heartbeat(BaseModel):
     """Payload carried inside a HEARTBEAT envelope."""
 
     timestamp: datetime = Field(
-        default_factory=lambda: datetime.now(timezone.utc),
+        default_factory=lambda: datetime.now(UTC),
         description="Heartbeat send time (ISO 8601 UTC)",
     )
     client_id: str = Field(

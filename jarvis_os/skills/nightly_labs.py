@@ -13,7 +13,7 @@ import asyncio
 import logging
 import shutil
 import subprocess
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -257,7 +257,7 @@ class NightlyLabsSkill(BaseSkill):
                 extracted.append({
                     **note_meta,
                     "content": content,
-                    "extracted_at": datetime.now(timezone.utc).isoformat(),
+                    "extracted_at": datetime.now(UTC).isoformat(),
                 })
             except Exception as e:
                 logger.error(f"Failed to extract note {note_path}: {e}")
@@ -303,9 +303,9 @@ class NightlyLabsSkill(BaseSkill):
                     "note_type": note_type,
                     "prompt_used": note_type,
                     "llm_response": result,
-                    "processed_at": datetime.now(timezone.utc).isoformat(),
+                    "processed_at": datetime.now(UTC).isoformat(),
                 })
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 skipped.append({"note": note["id"], "reason": "llm_timeout"})
             except Exception as e:
                 skipped.append({"note": note["id"], "reason": f"llm_error: {e}"})
@@ -386,7 +386,7 @@ class NightlyLabsSkill(BaseSkill):
         llm_results = parameters.get("llm_results", {})
         metrics = parameters.get("metrics", {"cpu_average": 0.0, "ram_peak_mb": 0})
 
-        today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+        today = datetime.now(UTC).strftime("%Y-%m-%d")
         report_path = self._report_dir / f"{today}.md" if self._report_dir else Path(f"_Nightly_Reports/{today}.md")
 
         # Build frontmatter sections

@@ -10,7 +10,7 @@ Event flow::
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from enum import StrEnum
 from typing import Any
 
@@ -41,7 +41,7 @@ class SkillExecutionStart(BaseModel):
     skill_id: str = Field(..., description="Identifier of the skill being executed")
     session_id: str = Field(..., description="Voice or text session identifier")
     timestamp: datetime = Field(
-        default_factory=lambda: datetime.now(timezone.utc),
+        default_factory=lambda: datetime.now(UTC),
         description="UTC timestamp of the event",
     )
     input_preview: str = Field(
@@ -69,7 +69,7 @@ class SkillExecutionComplete(BaseModel):
         default=None, description="Error message when status is FAILED or TIMEOUT"
     )
     timestamp: datetime = Field(
-        default_factory=lambda: datetime.now(timezone.utc),
+        default_factory=lambda: datetime.now(UTC),
         description="UTC timestamp of the event",
     )
 
@@ -86,7 +86,7 @@ class VaultWriteEvent(BaseModel):
         default_factory=list, description="Wikilinks added to related notes"
     )
     timestamp: datetime = Field(
-        default_factory=lambda: datetime.now(timezone.utc),
+        default_factory=lambda: datetime.now(UTC),
         description="UTC timestamp of the write",
     )
 
@@ -100,7 +100,7 @@ class VoiceEvent(BaseModel):
     session_id: str = Field(..., description="Voice session identifier")
     event_type: str = Field(..., description="open, close, stt_final, tts_chunk")
     timestamp: datetime = Field(
-        default_factory=lambda: datetime.now(timezone.utc),
+        default_factory=lambda: datetime.now(UTC),
         description="UTC timestamp of the event",
     )
     payload: dict[str, Any] = Field(

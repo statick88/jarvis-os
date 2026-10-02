@@ -14,7 +14,7 @@ Two layers are defined here:
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from enum import StrEnum
 from typing import Literal
 from uuid import UUID, uuid4
@@ -58,7 +58,7 @@ class HudMessage(BaseModel):
 
     id: UUID = Field(default_factory=uuid4, description="Unique message identifier")
     timestamp: datetime = Field(
-        default_factory=lambda: datetime.now(timezone.utc),
+        default_factory=lambda: datetime.now(UTC),
         description="ISO 8601 UTC timestamp",
     )
     status: HudStatus = Field(..., description="Runtime state at message time")
@@ -123,7 +123,7 @@ class WSMessage(BaseModel):
 
     id: UUID = Field(default_factory=uuid4, description="Unique message identifier")
     timestamp: datetime = Field(
-        default_factory=lambda: datetime.now(timezone.utc),
+        default_factory=lambda: datetime.now(UTC),
         description="ISO 8601 UTC timestamp",
     )
     type: Literal["STATUS", "COMMAND", "EVENT", "ERROR", "HEARTBEAT", "ACK"] = Field(

@@ -8,7 +8,7 @@ Usage::
 from __future__ import annotations
 
 import logging
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from email.utils import parsedate_to_datetime
 from pathlib import Path
 from typing import Any
@@ -57,7 +57,7 @@ def _fetch(input_data: dict[str, Any], vault_path: Path) -> dict[str, Any]:
     # 24) but was never applied: every item of every age was processed. Clamp
     # to the documented range so a bad value cannot disable the window.
     hours_back = max(1, min(int(input_data.get("hours_back", 24)), 168))
-    cutoff = datetime.now(timezone.utc) - timedelta(hours=hours_back)
+    cutoff = datetime.now(UTC) - timedelta(hours=hours_back)
     fetched = 0
     relevant = 0
     skipped_stale = 0
@@ -126,7 +126,7 @@ def _fetch(input_data: dict[str, Any], vault_path: Path) -> dict[str, Any]:
         )
 
     if raw_items:
-        today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+        today = datetime.now(UTC).strftime("%Y-%m-%d")
         out_path = vault_path / "raw" / f"tendencias_{today}.json"
         out_path.parent.mkdir(parents=True, exist_ok=True)
         import json
@@ -152,7 +152,7 @@ def _fetch(input_data: dict[str, Any], vault_path: Path) -> dict[str, Any]:
 
 
 def _report(vault_path: Path) -> dict[str, Any]:
-    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    today = datetime.now(UTC).strftime("%Y-%m-%d")
     return {
         "success": True,
         "data": {
@@ -176,7 +176,7 @@ def _configure(input_data: dict[str, Any], vault_path: Path) -> dict[str, Any]:
         lines.append(f'    category: "{category}"')
         lines.append("    enabled: true")
         lines.append("    fetch_interval_hours: 6")
-    lines.append(f'updated: "{datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")}"')
+    lines.append(f'updated: "{datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")}"')
     out_path.write_text("\n".join(lines), encoding="utf-8")
     return {"success": True, "data": {"feeds": feeds}}
 
@@ -242,8 +242,8 @@ def _parse_published(raw: str) -> datetime | None:
         parsed = None
     if parsed is not None:
         if parsed.tzinfo is None:
-            return parsed.replace(tzinfo=timezone.utc)
-        return parsed.astimezone(timezone.utc)
+            return parsed.replace(tzinfo=UTC)
+        return parsed.astimezone(UTC)
 
     # RFC 3339 / ISO 8601, the Atom default. Python 3.11+ handles "Z" natively.
     candidate = text[:-1] + "+00:00" if text.endswith(("Z", "z")) else text
@@ -252,8 +252,8 @@ def _parse_published(raw: str) -> datetime | None:
     except ValueError:
         return None
     if parsed.tzinfo is None:
-        return parsed.replace(tzinfo=timezone.utc)
-    return parsed.astimezone(timezone.utc)
+        return parsed.replace(tzinfo=UTC)
+    return parsed.astimezone(UTC)
 
 
 def _is_within_window(item: dict[str, Any], cutoff: datetime) -> bool:

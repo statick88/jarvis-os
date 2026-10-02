@@ -1,0 +1,59 @@
+# Ruff configuration for jarvis-os.
+#
+# There was no ruff config before, so every run used the default rule set
+# (E4, E7, E9, F) and the linter was never wired into CI. The default set
+# surfaced 338 findings, 227 of them mechanical.
+#
+# The rule selection is deliberately narrow. A wider selection was tried and
+# rejected: adding TRY, PLR, SIM and PERF produced 434 findings, of which the
+# large majority were style opinions (TRY003 alone was 102 complaints about
+# exception message length). A linter that reports hundreds of opinions trains
+# people to ignore its output, and then it stops finding the real defects.
+#
+# What is selected is what has actually caught a bug in this repository:
+#   F821 undefined-name    -> plan.py called _read(); the function is _read_plan
+#   F841 unused-variable   -> tendencias read hours_back and never used it
+#   F401 unused-import     -> the class of defect that hid a missing import
+#   B    bugbear           -> general correctness, not style
+#   PLW/RUF006             -> subprocess without check, dangling asyncio tasks
+#   ASYNC                  -> blocking calls inside async functions
+
+target-version = "py312"
+line-length = 100
+
+[lint]
+select = [
+    "E4",     # import errors
+    "E7",     # statement errors
+    "E9",     # syntax errors
+    "F",      # pyflakes -- F821 and F841 found the two real latent defects
+    "B",      # bugbear
+    "I",      # import sorting (mechanical, keeps diffs readable)
+    "UP",     # pyupgrade: Optional[X] -> X | None, all auto-fixable here
+    "ASYNC",  # blocking calls in async code
+    "PLW",    # pylint warnings: subprocess-without-check, global-statement
+    "RUF006", # asyncio-dangling-task
+    "RUF012", # mutable-class-default
+    "DTZ",    # naive datetime
+    "G",      # logging format
+    "F541",   # f-string without placeholders
+]
+
+[lint.per-file-ignores]
+# Broad excepts are the design here, not an oversight. Every skill handler wraps
+# its dispatch and returns {"success": false, "error": ...} so a failing branch
+# cannot crash the caller, and the infra clients degrade rather than propagate:
+# voice_bridge catches protobuf VersionError so a runtime mismatch degrades to
+# no-grpc instead of raising at import time, and floci_client retries aioboto3
+# initialisation for LocalStack. Catching Exception is the mechanism, so
+# flagging every site produced 83 findings and no information.
+"jarvis_os/skills/handlers/*.py" = ["BLE001", "TRY400", "TRY401"]
+"jarvis_os/voice_bridge/*.py" = ["BLE001"]
+"jarvis_os/floci_client/*.py" = ["BLE001", "PLW1510"]
+"jarvis_os/skills/registry.py" = ["BLE001"]
+
+[lint.isort]
+known-first-party = ["jarvis_os"]
+
+[format]
+quote-style = "double"

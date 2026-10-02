@@ -7,7 +7,7 @@ Factory and serialization helpers for the message envelope protocol.
 from __future__ import annotations
 
 import json
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Literal
 from uuid import UUID, uuid4
 
@@ -32,7 +32,7 @@ def create_envelope(type: MessageType, payload: dict) -> Envelope:
     """
     return Envelope(
         id=uuid4(),
-        timestamp=datetime.now(timezone.utc),
+        timestamp=datetime.now(UTC),
         type=type,
         payload=payload,
     )

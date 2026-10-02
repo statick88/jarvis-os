@@ -22,7 +22,7 @@ import hashlib
 import json
 import logging
 import re
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -73,7 +73,7 @@ class VaultOutputLogger:
             VaultWriteError: If the vault directory is not writable.
         """
         safe_skill_id = self._sanitize_skill_id(skill_id)
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         date_dir = now.strftime("%Y-%m-%d")
         time_str = now.strftime("%H%M%S")
         filename = f"{safe_skill_id}-{time_str}.md"

@@ -23,7 +23,7 @@ import asyncio
 import importlib
 import logging
 import time
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 from jarvis_os.odd_receipts import record_execution
@@ -42,7 +42,7 @@ logger = logging.getLogger(__name__)
 
 
 def _utcnow() -> datetime:
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 class SkillExecutor:
@@ -198,7 +198,7 @@ class SkillExecutor:
                 asyncio.to_thread(module.run, input_data),
                 timeout=timeout,
             )
-        except asyncio.TimeoutError:
+        except TimeoutError:
             raise SkillTimeoutError(
                 f"skill {skill.id!r} exceeded {timeout}s timeout"
             ) from None
@@ -256,7 +256,7 @@ class SkillExecutor:
                 proc.communicate(),
                 timeout=timeout,
             )
-        except asyncio.TimeoutError:
+        except TimeoutError:
             raise SkillTimeoutError(
                 f"skill {skill.id!r} exceeded {timeout}s timeout"
             ) from None
@@ -298,7 +298,7 @@ class SkillExecutor:
                 asyncio.to_thread(module.run, merged),
                 timeout=timeout,
             )
-        except asyncio.TimeoutError:
+        except TimeoutError:
             raise SkillTimeoutError(
                 f"skill {skill.id!r} exceeded {timeout}s timeout (hybrid post-processing)"
             ) from None

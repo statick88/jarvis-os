@@ -185,7 +185,7 @@ class OrchestratorVoiceClient:
                 stt_model=data.get("stt_model", "whisper-base"),
                 tts_voice=data.get("tts_voice", "es_ES-pacifico"),
             )
-        except asyncio.TimeoutError:
+        except TimeoutError:
             raise JarvisVoiceError(f"No session_ack received for {session_id} within {timeout}s")
 
     def _wire_listeners(self, ws: JarvisVoiceBridgeWS, session_id: str) -> None:
@@ -283,7 +283,7 @@ class OrchestratorVoiceClient:
         while not self._shutdown.is_set():
             try:
                 await asyncio.wait_for(self._shutdown.wait(), timeout=30)
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 pass
             if self._shutdown.is_set():
                 break
