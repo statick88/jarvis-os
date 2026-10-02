@@ -217,6 +217,7 @@ jobs:
         # /opt/runner/_work/... SonarQube cannot map the file paths, so
         # coverage reads as 0%. Regenerate it locally with the correct base dir.
         run: |
+          pip install -r requirements.txt -r requirements-dev.txt
           pytest tests/ --cov=jarvis_os --cov-report=xml --cov-report=term-missing -q
 
       - name: Verify coverage is present
