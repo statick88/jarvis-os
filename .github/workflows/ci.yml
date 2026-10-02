@@ -9,6 +9,11 @@
 # Every command below was run locally before being written here. That is the
 # whole point: the previous pipeline was never green because nobody executed it.
 #
+# Four jobs: lint, test, skills, sast. The SAST job lives here rather than in its
+# own workflow because GitHub artifacts do not cross workflow boundaries, so a
+# separate sonarqube.yml could not download the coverage report and failed with
+# "no artifact found". Same workflow, explicit needs: [test].
+#
 # Gates are ratchets, not aspirations:
 #   ruff     fails on any finding not listed in .quality/ruff-baseline.txt
 #   coverage fails below 57%, the measured floor
@@ -52,17 +57,22 @@ jobs:
         # finding, so regressions hide inside improvements. Diffing the exact
         # finding list means a new rule violation is always visible, even if
         # the total went down.
+        #
+        # LC_ALL=C on both sides is not optional. sort and comm must agree on
+        # collation, and the runner's default locale orders "_" differently, so
+        # comm refused the baseline with "file 1 is not in sorted order" and the
+        # job failed with 60 findings on each side and nothing new between them.
         run: |
           set -uo pipefail
-          ruff check jarvis_os/ --output-format concise 2>&1 \
-            | grep -E '^jarvis_os/.*: [A-Z]+[0-9]+' \
-            | sed 's/:[0-9]*:[0-9]*:/:/' \
-            | sort > /tmp/ruff-current.txt || true
+          LC_ALL=C ruff check jarvis_os/ --output-format concise 2>&1 \
+            | LC_ALL=C grep -E '^jarvis_os/.*: [A-Z]+[0-9]+' \
+            | LC_ALL=C sed 's/:[0-9]*:[0-9]*:/:/' \
+            | LC_ALL=C sort > /tmp/ruff-current.txt || true
 
-          echo "baseline: $(wc -l < .quality/ruff-baseline.txt) findings"
-          echo "current:  $(wc -l < /tmp/ruff-current.txt) findings"
+          echo "baseline: $(LC_ALL=C wc -l < .quality/ruff-baseline.txt) findings"
+          echo "current:  $(LC_ALL=C wc -l < /tmp/ruff-current.txt) findings"
 
-          NEW=$(comm -13 .quality/ruff-baseline.txt /tmp/ruff-current.txt)
+          NEW=$(LC_ALL=C comm -13 .quality/ruff-baseline.txt /tmp/ruff-current.txt)
           if [ -n "$NEW" ]; then
             echo "::error::new lint findings not in the baseline:"
             echo "$NEW"
@@ -170,3 +180,62 @@ jobs:
 
           asyncio.run(main())
           PY
+
+  sast:
+    name: SAST (SonarQube)
+    needs: [test]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+
+      - name: Download coverage from the test job
+        # Same workflow, so the artifact is in scope. As a separate workflow
+        # this step failed with 'no artifact found': artifacts do not cross
+        # workflow boundaries, which is a structural limit and not a
+        # configuration mistake.
+        uses: actions/download-artifact@v4
+        with:
+          name: coverage
+
+      - name: Verify coverage is present
+        # A missing report makes SonarQube record zero coverage rather than
+        # failing, turning a broken pipeline into a green one with a
+        # misleading number.
+        run: |
+          test -s coverage.xml || { echo "::error::coverage.xml missing or empty"; exit 1; }
+          echo "coverage.xml: $(wc -c < coverage.xml) bytes"
+
+      - name: SonarQube scan
+        # Pinned to v6.0.0, not floating on @main or @v4.
+        # CVE-2025-58178 (GHSA-f79p-9c5r-xg88, CVSS 3.1 7.8): args are treated
+        # as shell expressions; fixed in v5.3.1.
+        # CVE-2025-59844 (GHSA-5xq9-5g24-4g6f): argument injection on Windows
+        # runners, bypassing the earlier fix; fixed in v6.0.0.
+        uses: SonarSource/sonarqube-scan-action@v6.0.0
+        env:
+          # SonarQube Server 9.9 rejects "Authorization: Bearer" and answers
+          # 401, so the token must travel as the Basic-auth username. The env
+          # var is named SONAR_LOGIN rather than SONAR_TOKEN to make that
+          # visible; renaming it back would look like a fix and break it.
+          SONAR_LOGIN: ${{ secrets.SONAR_TOKEN }}
+          SONAR_HOST_URL: ${{ vars.SONAR_HOST_URL }}
+        with:
+          # Only the credential. Every analysis property comes from
+          # sonar-project.properties, so there is a single source of truth.
+          args: >
+            -Dsonar.login=${{ env.SONAR_LOGIN }}
+
+      - name: Enforce quality gate
+        uses: SonarSource/sonarqube-quality-gate-action@v1
+        timeout-minutes: 5
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        with:
+          scanMetadataReportFile: .sonar/report-task.txt

@@ -13,9 +13,6 @@ jarvis_os/opencode_adapter/client.py: RUF006 Store a reference to the return val
 jarvis_os/opencode_adapter/client.py: RUF006 Store a reference to the return value of `asyncio.create_task`
 jarvis_os/opencode_adapter/client.py: RUF006 Store a reference to the return value of `asyncio.create_task`
 jarvis_os/opencode_adapter/client.py: RUF006 Store a reference to the return value of `asyncio.create_task`
-jarvis_os/orchestrator_impl/__init__.py: F401 `jarvis_os.orchestrator_impl.errors.IntentAnalysisError` imported but unused; consider removing, adding to `__all__`, or using a redundant alias
-jarvis_os/orchestrator_impl/intent.py: RUF012 Mutable default value for class attribute
-jarvis_os/orchestrator_impl/pipeline.py: RUF006 Store a reference to the return value of `asyncio.ensure_future`
 jarvis_os/orchestrator.py: ASYNC240 Async functions should not perform blocking pathlib.Path operations
 jarvis_os/orchestrator.py: ASYNC240 Async functions should not perform blocking pathlib.Path operations
 jarvis_os/orchestrator.py: PLW0603 Using the global statement to update `_hud_server` is discouraged
@@ -25,6 +22,9 @@ jarvis_os/orchestrator.py: PLW0603 Using the global statement to update `_pipeli
 jarvis_os/orchestrator.py: PLW0603 Using the global statement to update `_tts_session_opened` is discouraged
 jarvis_os/orchestrator.py: PLW0603 Using the global statement to update `_voice_client` is discouraged
 jarvis_os/orchestrator.py: PLW0603 Using the global statement to update `_voice_client` is discouraged
+jarvis_os/orchestrator_impl/__init__.py: F401 `jarvis_os.orchestrator_impl.errors.IntentAnalysisError` imported but unused; consider removing, adding to `__all__`, or using a redundant alias
+jarvis_os/orchestrator_impl/intent.py: RUF012 Mutable default value for class attribute
+jarvis_os/orchestrator_impl/pipeline.py: RUF006 Store a reference to the return value of `asyncio.ensure_future`
 jarvis_os/skills/executor.py: ASYNC109 Async function definition with a `timeout` parameter
 jarvis_os/skills/executor.py: ASYNC109 Async function definition with a `timeout` parameter
 jarvis_os/skills/executor.py: ASYNC109 Async function definition with a `timeout` parameter
