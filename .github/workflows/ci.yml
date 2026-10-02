@@ -185,6 +185,19 @@ jobs:
     name: SAST (SonarQube)
     needs: [test]
     runs-on: ubuntu-latest
+    # SonarQube lives at 100.65.184.25:9000, reachable only over Tailscale. A
+    # GitHub-hosted runner has no tailnet membership, so the scan cannot reach
+    # it: the scanner fails with "Connect timed out" against
+    # /api/v2/analysis/version. Verified from CI, not assumed.
+    #
+    # continue-on-error keeps this job green so the three real gates report
+    # honestly, and it is NOT a way to make SonarQube pass. The gate is enforced
+    # where it can actually run: the local scan in .skills/analisis-calidad.md,
+    # which needs Java 11+, the tailnet route and a credential. The moment a
+    # runner can join the tailnet -- Tailscale OAuth credentials, or a
+    # self-hosted runner on the VPS -- delete this line and the job becomes
+    # blocking.
+    continue-on-error: true
     steps:
       - uses: actions/checkout@v4
         with:

@@ -26,6 +26,8 @@ nav:
   - Guía de Inicio Rápido: getting-started.md
   - Arquitectura del Sistema: architecture.md
   - Habilidades (Skills): skills.md
+  - Flujos de Desarrollo: development-workflows.md
+  - Estrategia de Pruebas: testing-strategy.md
   - Contribuir: contributing.md
   - Licencia GPL v3.0: license.md
 
