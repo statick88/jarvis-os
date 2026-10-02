@@ -240,9 +240,28 @@ jobs:
             -Dsonar.login=${{ env.SONAR_LOGIN }}
 
       - name: Enforce quality gate
+        # The scan ran in a different working directory on the self-hosted runner.
+        # Find the report-task.txt and feed it to the quality gate action.
+        run: |
+          set -euo pipefail
+          # The scan writes report-task.txt to the project base directory.
+          # On the self-hosted runner, the project is at /opt/runner/_work/jarvis-os/jarvis-os
+          REPORT_TASK="/opt/runner/_work/jarvis-os/jarvis-os/.sonar/report-task.txt"
+          if [ ! -f "$REPORT_TASK" ]; then
+            # Fallback: search for it
+            REPORT_TASK=$(find /opt/runner/_work -name "report-task.txt" -type f 2>/dev/null | head -1)
+          fi
+          if [ ! -f "$REPORT_TASK" ]; then
+            echo "::error::report-task.txt not found"
+            exit 1
+          fi
+          echo "Found report-task.txt at $REPORT_TASK"
+          echo "REPORT_TASK=$REPORT_TASK" >> $GITHUB_ENV
+
+      - name: Enforce quality gate
         uses: SonarSource/sonarqube-quality-gate-action@v1
         timeout-minutes: 5
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
         with:
-          scanMetadataReportFile: .sonar/report-task.txt
+          scanMetadataReportFile: ${{ env.REPORT_TASK }}
