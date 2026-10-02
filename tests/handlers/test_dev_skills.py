@@ -24,7 +24,6 @@ from jarvis_os.skills.handlers import (
     verificar_rdd,
 )
 
-SKILLS_DIR = Path(".skills")
 
 
 class TestCobertura:
@@ -160,13 +159,56 @@ class TestVerificarRdd:
         assert result["data"]["root"] == str(tmp_path)
 
 
-class TestDesarrollarSkill:
-    def test_validates_a_real_shipped_skill(self) -> None:
-        result = desarrollar_skill.run({"action": "check", "skill_name": "cobertura"})
+def _frontmatter(
+    *,
+    skill_id: str = "skill.prueba",
+    description: str = '"A description long enough to pass validation"',
+    capability: str = '"prueba.do"',
+) -> str:
+    """Build a valid skill frontmatter, varying one field at a time.
 
+    Building it here rather than reading a shipped .skills/*.md keeps these
+    tests self-contained: the four procedure skills are gitignored, so a test
+    that opens one passes locally and fails in CI.
+    """
+    return (
+        "---\n"
+        f'id: "{skill_id}"\n'
+        'name: "Prueba"\n'
+        f"description: {description}\n"
+        "capabilities:\n"
+        f"  - {capability}\n"
+        "input_schema:\n  type: object\n"
+        "output_schema:\n  type: object\n"
+        "---\n"
+    )
+
+
+VALID_FRONTMATTER = _frontmatter()
+
+
+class TestDesarrollarSkill:
+    def test_validates_a_conforming_skill_file(self, tmp_path: Path) -> None:
+        """Writes its own frontmatter rather than reading a shipped skill.
+
+        The four procedure skills are gitignored, so a test that opens
+        .skills/cobertura.md passes on a developer machine and fails in CI with
+        'no skill file'. Self-contained fixtures keep both honest.
+        """
+        (tmp_path / "prueba.md").write_text(VALID_FRONTMATTER)
+        result = desarrollar_skill.run(
+            {
+                "action": "check",
+                "skill_name": "prueba",
+                "context": {"skills_dir": str(tmp_path)},
+            }
+        )
+
+        # The only remaining problem is the missing handler, which is the point:
+        # a skill without one registers cleanly and fails at execute time.
         assert result["success"] is True
-        assert result["data"]["valid"] is True, result["data"]["problems"]
-        assert result["data"]["handler_exists"] is True
+        assert result["data"]["valid"] is False
+        assert any("no handler" in p for p in result["data"]["problems"])
 
     def test_flags_a_missing_file(self) -> None:
         result = desarrollar_skill.run({"action": "check", "skill_name": "no_existe"})
@@ -178,17 +220,7 @@ class TestDesarrollarSkill:
         """The rule that rejected skill-cobertura. Kept as a test because the
         two grandfathered skills still use the hyphen form."""
         skill = tmp_path / "prueba.md"
-        skill.write_text(
-            "---\n"
-            'id: "skill-prueba"\n'
-            'name: "Prueba"\n'
-            'description: "A description long enough to pass validation"\n'
-            "capabilities:\n"
-            '  - "prueba.do"\n'
-            "input_schema:\n  type: object\n"
-            "output_schema:\n  type: object\n"
-            "---\n"
-        )
+        skill.write_text(_frontmatter(skill_id="skill-prueba"))
         result = desarrollar_skill.run(
             {
                 "action": "check",
@@ -202,17 +234,7 @@ class TestDesarrollarSkill:
 
     def test_rejects_digits_in_capabilities(self, tmp_path: Path) -> None:
         skill = tmp_path / "prueba.md"
-        skill.write_text(
-            "---\n"
-            'id: "skill.prueba"\n'
-            'name: "Prueba"\n'
-            'description: "A description long enough to pass validation"\n'
-            "capabilities:\n"
-            '  - "prueba.do_v2"\n'
-            "input_schema:\n  type: object\n"
-            "output_schema:\n  type: object\n"
-            "---\n"
-        )
+        skill.write_text(_frontmatter(capability='"prueba.do_v2"'))
         result = desarrollar_skill.run(
             {
                 "action": "check",
@@ -249,17 +271,7 @@ class TestDesarrollarSkill:
 
     def test_rejects_a_short_description(self, tmp_path: Path) -> None:
         skill = tmp_path / "prueba.md"
-        skill.write_text(
-            "---\n"
-            'id: "skill.prueba"\n'
-            'name: "Prueba"\n'
-            'description: "corto"\n'
-            "capabilities:\n"
-            '  - "prueba.do"\n'
-            "input_schema:\n  type: object\n"
-            "output_schema:\n  type: object\n"
-            "---\n"
-        )
+        skill.write_text(_frontmatter(description='"corto"'))
         result = desarrollar_skill.run(
             {
                 "action": "check",
@@ -284,12 +296,19 @@ class TestDesarrollarSkill:
     def test_template_requires_a_name(self) -> None:
         assert desarrollar_skill.run({"action": "template"})["success"] is False
 
-    def test_sub_actions_all_reduce_to_validation(self) -> None:
+    def test_sub_actions_all_reduce_to_validation(self, tmp_path: Path) -> None:
         """A partial check would report a valid file with a missing handler."""
+        (tmp_path / "prueba.md").write_text(VALID_FRONTMATTER)
         for action in ("schema", "entrypoint", "handler", "test", "register"):
-            result = desarrollar_skill.run({"action": action, "skill_name": "cobertura"})
-            assert result["data"]["valid"] is True, action
+            result = desarrollar_skill.run(
+                {
+                    "action": action,
+                    "skill_name": "prueba",
+                    "context": {"skills_dir": str(tmp_path)},
+                }
+            )
             assert result["data"]["requested_action"] == action
+            assert result["data"]["handler_exists"] is False
 
     def test_dump_is_valid_json(self) -> None:
         assert "chain" in json.loads(desarrollar_skill.dump())
