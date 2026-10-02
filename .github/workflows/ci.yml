@@ -211,6 +211,14 @@ jobs:
         with:
           name: coverage
 
+      - name: Regenerate coverage.xml with correct paths for SonarQube
+        # The downloaded coverage.xml has absolute paths from the GitHub-hosted
+        # runner (/home/runner/work/...) but the self-hosted runner is at
+        # /opt/runner/_work/... SonarQube cannot map the file paths, so
+        # coverage reads as 0%. Regenerate it locally with the correct base dir.
+        run: |
+          pytest tests/ --cov=jarvis_os --cov-report=xml --cov-report=term-missing -q
+
       - name: Verify coverage is present
         # A missing report makes SonarQube record zero coverage rather than
         # failing, turning a broken pipeline into a green one with a
