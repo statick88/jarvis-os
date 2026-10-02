@@ -59,3 +59,17 @@ coverage.xml
 
 # RDD execution receipts: per-run process artifacts, never versioned.
 receipts/
+
+# Development-procedure skills. Local to each machine and tailored to whoever
+# is working on the codebase right now, so they are not shared through git.
+#
+# The seven product skills already in .skills/ stay tracked on purpose: they are
+# part of the product and other machines need them. Only these procedure skills
+# are ignored, and they are untracked here so the ignore takes effect.
+.skills/desarrollar-skill.md
+.skills/verificar-rdd.md
+.skills/cobertura.md
+.skills/analisis-calidad.md
+
+# CodeGraph index: derived from the sources, rebuilt with `codegraph init`.
+.codegraph/
