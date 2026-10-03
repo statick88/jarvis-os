@@ -129,6 +129,7 @@ class OrchestratorPipeline:
         """
         envelope: dict[str, Any]
         event: SkillExecutionComplete | None = None
+        entry_t = _utcnow()
         try:
             intent_result = self._analyze_intent(payload)
             resolved = self._resolve_skill(intent_result, payload)
@@ -151,6 +152,7 @@ class OrchestratorPipeline:
         # Post-execution: vault write + TTS (fire-and-forget)
         if event is not None:
             await self._on_skill_complete(event, input_data=payload.get("input"), exec_result=exec_result)
+            event.pipeline_latency_ms = (_utcnow() - entry_t).total_seconds() * 1000
 
         status_code = 200 if envelope["payload"].get("success") else 422
         return JSONResponse(envelope, status_code=status_code)
@@ -162,6 +164,7 @@ class OrchestratorPipeline:
         exec_result: dict[str, Any] | None = None,
     ) -> None:
         """Post-execution hook: vault write + TTS auto-trigger."""
+        hook_t0 = _utcnow()
         # Vault output persistence
         if self._vault_logger and event.status == ExecutionStatus.COMPLETED:
             try:
@@ -188,6 +191,7 @@ class OrchestratorPipeline:
         if self._tts_callback and event.tts_text:
             try:
                 asyncio.ensure_future(self._tts_callback(event.tts_text))
+                event.tts_dispatch_ms = (_utcnow() - hook_t0).total_seconds() * 1000
             except Exception as exc:  # noqa: BLE001
                 logger.warning("TTS callback failed: %s", exc)
 

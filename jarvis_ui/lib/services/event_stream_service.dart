@@ -57,6 +57,8 @@ class SkillExecutionEvent extends HudEvent {
   final String sessionId;
   final String status; // started | completed | failed
   final double durationMs;
+  final double? pipelineLatencyMs;
+  final double? ttsDispatchMs;
   final String? error;
 
   SkillExecutionEvent({
@@ -64,6 +66,8 @@ class SkillExecutionEvent extends HudEvent {
     required this.sessionId,
     required this.status,
     required this.durationMs,
+    this.pipelineLatencyMs,
+    this.ttsDispatchMs,
     this.error,
     required super.id,
     required super.timestamp,
@@ -77,6 +81,9 @@ class SkillExecutionEvent extends HudEvent {
       sessionId: payload['session_id'] as String? ?? '',
       status: payload['status'] as String? ?? 'completed',
       durationMs: (payload['duration_ms'] as num?)?.toDouble() ?? 0.0,
+      pipelineLatencyMs:
+          (payload['pipeline_latency_ms'] as num?)?.toDouble(),
+      ttsDispatchMs: (payload['tts_dispatch_ms'] as num?)?.toDouble(),
       error: payload['error'] as String?,
       id: payload['id']?.toString() ?? '',
       timestamp: payload['timestamp'] != null

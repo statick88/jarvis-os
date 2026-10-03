@@ -59,6 +59,12 @@ class SkillExecutionComplete(BaseModel):
     session_id: str = Field(..., description="Voice or text session identifier")
     status: ExecutionStatus = Field(..., description="Execution outcome")
     duration_ms: float = Field(..., description="Wall-clock duration in milliseconds")
+    pipeline_latency_ms: float | None = Field(
+        default=None, description="Entry-to-complete latency in milliseconds (FASE 11 T-4)"
+    )
+    tts_dispatch_ms: float | None = Field(
+        default=None, description="Hook-to-TTS-dispatch latency in milliseconds (FASE 11 T-4)"
+    )
     output_ref: str = Field(
         default="", description="Vault output path, e.g. vault/outputs/.../skill.md"
     )
