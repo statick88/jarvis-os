@@ -646,8 +646,51 @@ test_vault_structure() {
     return 0
 }
 
-test_graceful_shutdown() {
-    log_step "TEST 8: Apagado Graceful (SIGTERM)"
+test_fase11_closed_loop_host() {
+    log_step "TEST 9: FASE 11 Closed Loop (host-only, sin Docker)"
+
+    # Pytest del loop cerrado + latencia + rebuild
+    if python3 -m pytest tests/e2e_voice_to_hud_test.py tests/orchestrator/test_pipeline_latency.py tests/orchestrator/test_pipeline_vault_links.py tests/orchestrator/test_vault_rebuild.py -q 2>&1 | tail -n 3; then
+        log_success "Pytest FASE 11 verde (e2e + latencia + vault links + rebuild)"
+    else
+        log_fail "Pytest FASE 11 FALLÓ"
+        return 1
+    fi
+
+    # Guard: ruta rebuild registrada
+    if grep -q 'v1/vault/rebuild' "$PROJECT_ROOT/jarvis_os/orchestrator.py"; then
+        log_success "Ruta POST /v1/vault/rebuild registrada"
+    else
+        log_fail "Ruta POST /v1/vault/rebuild AUSENTE en orchestrator.py"
+        return 1
+    fi
+
+    # Guard: instrumentación de latencia en backend y Flutter
+    if grep -q 'pipeline_latency_ms' "$PROJECT_ROOT/jarvis_os/orchestrator_impl/events.py" \
+        && grep -q 'pipelineLatencyMs' "$PROJECT_ROOT/jarvis_ui/lib/services/event_stream_service.dart"; then
+        log_success "Latencia instrumentada (backend + Flutter)"
+    else
+        log_fail "Instrumentación de latencia AUSENTE (events.py o dart)"
+        return 1
+    fi
+
+    # Guard: E2E sin SKIP/XFAIL reales (el guard excluye sus propias asserts)
+    if python3 -c "
+import re, pathlib
+text = pathlib.Path('$PROJECT_ROOT/tests/e2e_voice_to_hud_test.py').read_text()
+code = '\n'.join(l for l in text.splitlines() if not l.strip().startswith('assert') and 'not in ' not in l)
+assert '@pytest.mark.skip' not in code and 'pytest.xfail' not in code, 'SKIP/XFAIL markers found'
+"; then
+        log_success "E2E sin SKIP ni XFAIL (fail-hard guard)"
+    else
+        log_fail "E2E contiene SKIP/XFAIL"
+        return 1
+    fi
+
+    return 0
+}
+
+test_graceful_shutdown() {    log_step "TEST 8: Apagado Graceful (SIGTERM)"
 
     log_info "Enviando SIGTERM a orchestrator..."
     if run_compose kill -s SIGTERM gentle-orchestrator; then
@@ -776,6 +819,7 @@ main() {
         # Solo tests mock (no requieren Docker)
         test_opencode_adapter_mock
         test_plan_skill_integration
+        test_fase11_closed_loop_host
     else
         # Tests completos (Docker + mock) en orden (fail-hard: no enmascarar errores)
         test_docker_compose_up
@@ -789,6 +833,7 @@ main() {
         test_plan_skill_integration
         test_tendencias_sqs_integration
         test_vault_structure
+        test_fase11_closed_loop_host
         test_graceful_shutdown
     fi
 

@@ -527,6 +527,103 @@ class TestFullClosedLoop:
 
 
 # ---------------------------------------------------------------------------
+# Test: FASE 11 Closure — rebuild live + latency budget + no-skip guard (T-5)
+# ---------------------------------------------------------------------------
+
+class TestFase11Closure:
+    """Live guards for the FASE 11 success criteria (host-only, no Docker)."""
+
+    def test_no_skip_markers(self):
+        """E2E suite must not carry SKIP/XFAIL — fail-hard guard."""
+        text = Path(__file__).read_text(encoding="utf-8")
+        code = "\n".join(
+            l for l in text.splitlines()
+            if not l.strip().startswith("assert") and "not in " not in l
+        )
+        assert "@pytest.mark.skip" not in code
+        assert "pytest.xfail" not in code
+
+    def test_rebuild_endpoint_live(self, tmp_path: Path, monkeypatch):
+        """POST /v1/vault/rebuild rebuilds the index on a tmp vault."""
+        from types import SimpleNamespace
+
+        from fastapi.testclient import TestClient
+
+        import jarvis_os.orchestrator as orch_mod
+        from jarvis_os.orchestrator import app
+
+        vault = tmp_path / "vault"
+        (vault / "wiki").mkdir(parents=True, exist_ok=True)
+        (vault / "wiki" / "note-a.md").write_text(
+            '---\nid: "note-a"\ntitle: "note-a"\ntags: ["skill"]\n'
+            'created: "2026-10-02T10:00:00+00:00"\nmodified: "2026-10-02T10:00:00+00:00"\n---\n\nHi.\n',
+            encoding="utf-8",
+        )
+        monkeypatch.setattr(
+            orch_mod,
+            "get_settings",
+            lambda: SimpleNamespace(vault=SimpleNamespace(vault_root=vault)),
+        )
+        response = TestClient(app).post("/v1/vault/rebuild")
+        assert response.status_code == 200, response.text
+        assert response.json()["success"] is True
+        assert (vault / "wiki" / ".boveda_index.json").exists()
+
+    @pytest.mark.asyncio
+    async def test_latency_budget(self, tmp_vault: Path):
+        """Pipeline entry-to-complete exposes latency within budget."""
+        from jarvis_os.orchestrator_impl.pipeline import OrchestratorPipeline
+        from jarvis_os.skills.registry import SkillRegistry
+        from jarvis_os.skills.loader import SkillLoader
+        from jarvis_os.skills.executor import SkillExecutor
+        from jarvis_os.skills.models import (
+            ExecutionConfig, ExecutionStatus, ExecutionType, SkillFrontmatter, SkillMetadata
+        )
+
+        frontmatter = SkillFrontmatter(
+            id="skill.latency",
+            name="Latency Skill",
+            version="1.0.0",
+            description="Skill for latency budget",
+            capabilities=["obsidian.create_note"],
+            input_schema={"type": "object"},
+            output_schema={"type": "object"},
+            execution=ExecutionConfig(),
+            execution_type=ExecutionType.PYTHON,
+        )
+        skill = SkillMetadata(
+            id=frontmatter.id, name=frontmatter.name, version=frontmatter.version,
+            description=frontmatter.description, path=Path("/tmp/fake.md"), frontmatter=frontmatter,
+        )
+        registry = SkillRegistry()
+        registry.register(skill)
+        executor = MagicMock(spec=SkillExecutor)
+        result = MagicMock()
+        result.ok = True
+        result.output = {"result": "done"}
+        result.error = None
+        result.status = ExecutionStatus.SUCCESS
+        executor.execute = AsyncMock(return_value=result)
+        tts_calls: list[str] = []
+
+        async def _tts(text: str) -> None:
+            tts_calls.append(text)
+
+        pipeline = OrchestratorPipeline(
+            registry=registry, loader=MagicMock(spec=SkillLoader), executor=executor,
+            vault_root=tmp_vault, tts_callback=_tts,
+        )
+        events: list = []
+        pipeline.add_event_listener(events.append)
+        response = await pipeline.execute({"text": "crear nota", "tts_text": "ok"})
+        assert response.status_code == 200
+        complete = next(e for e in events if type(e).__name__ == "SkillExecutionComplete")
+        assert complete.pipeline_latency_ms is not None
+        assert complete.pipeline_latency_ms < 1000
+        assert complete.tts_dispatch_ms is not None
+
+
+# ---------------------------------------------------------------------------
 # Entry Point
 # ---------------------------------------------------------------------------
 
