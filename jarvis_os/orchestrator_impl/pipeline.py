@@ -47,6 +47,7 @@ from jarvis_os.orchestrator_impl.resolver import ResolvedSkill, SkillResolver
 from jarvis_os.skills.executor import SkillExecutor
 from jarvis_os.skills.loader import SkillLoader
 from jarvis_os.skills.registry import SkillRegistry
+from jarvis_os.vault.indexer import VaultIndexer
 from jarvis_os.vault.models import VaultWriteError
 from jarvis_os.vault.output_logger import VaultOutputLogger
 
@@ -70,6 +71,8 @@ class OrchestratorPipeline:
         voice_client: Optional ``OrchestratorVoiceClient`` for TTS streaming.
         opencode_client: Optional ``OpenCodeClient`` for code execution.
         vault_root: Optional vault root path for ``VaultOutputLogger``.
+        vault_indexer: Optional ``VaultIndexer`` run incrementally after a
+            successful vault write to refresh backlinks.
         tts_callback: Optional async callback ``(text: str) -> None`` for TTS auto-trigger.
     """
 
@@ -81,6 +84,7 @@ class OrchestratorPipeline:
         voice_client: Any | None = None,
         opencode_client: Any | None = None,
         vault_root: Path | None = None,
+        vault_indexer: VaultIndexer | None = None,
         tts_callback: Callable[[str], Awaitable[None]] | None = None,
     ) -> None:
         self._registry = registry
@@ -91,6 +95,7 @@ class OrchestratorPipeline:
         self._vault_logger: VaultOutputLogger | None = (
             VaultOutputLogger(vault_root=vault_root) if vault_root else None
         )
+        self._vault_indexer = vault_indexer
         self._tts_callback = tts_callback
         self._intent_analyzer = IntentAnalyzer()
         self._event_listeners: list[Any] = []
@@ -211,6 +216,12 @@ class OrchestratorPipeline:
                 links_added=[],  # Could be enhanced to extract links from output
             )
             await self._emit(vault_event)
+            # FASE 11 T-2: incremental index to refresh backlinks — never breaks pipeline
+            if self._vault_indexer is not None:
+                try:
+                    await self._vault_indexer.index()
+                except Exception as exc:  # noqa: BLE001
+                    logger.warning(_VAULT_WRITE_FAILED, exc)
         except VaultWriteError as exc:
             logger.warning(_VAULT_WRITE_FAILED, exc)
         except Exception as exc:  # noqa: BLE001
