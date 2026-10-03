@@ -476,6 +476,21 @@ async def execute(payload: dict[str, Any]) -> JSONResponse:
     return await pipeline.execute(payload)
 
 
+@app.post("/v1/vault/rebuild")
+async def vault_rebuild() -> JSONResponse:
+    """Force a full vault re-index, refreshing bidirectional backlinks."""
+    from jarvis_os.vault.indexer import VaultIndexer
+
+    settings = get_settings()
+    try:
+        indexer = VaultIndexer(vault_root=settings.vault.vault_root)
+        result = await indexer.rebuild()
+        return JSONResponse(result.model_dump())
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("Vault rebuild failed: %s", exc)
+        return JSONResponse({"success": False, "data": {}, "error": str(exc)}, status_code=500)
+
+
 app.include_router(skills_router)
 
 

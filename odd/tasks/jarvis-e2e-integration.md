@@ -61,7 +61,7 @@ Cerrar en vez de expandir: la evidencia muestra que el 90% ya está construido. 
 |----|------|-------------|--------|----------|-------|------------------|
 | T-1 | Register change | Crear `openspec/changes/jarvis-e2e-integration/{proposal,design,tasks}.md`, set `state.yaml:active_change`, checklist `.progress` FASE 11, este doc | done | high | inline | 1 doc mecánico, sin research, <10k tokens |
 | T-2 | Wire VaultIndexer | Inyectar `VaultIndexer` en `pipeline.py:189 _write_vault_and_emit`, update incremental con try/except + fallback; instanciar en `orchestrator.py:132`; test regresión | done | high | delegated direct | 2+ files no-triviales + lectura prepara escritura |
-| T-3 | Add rebuild endpoint | `POST /v1/vault/rebuild` en `orchestrator.py` junto a `:462 /v1/execute` → `indexer.py:191 rebuild()`; test links | pending | high | delegated direct | 2+ files, endpoint + tests |
+| T-3 | Add rebuild endpoint | `POST /v1/vault/rebuild` en `orchestrator.py` junto a `:462 /v1/execute` → `indexer.py:191 rebuild()`; test links | done | high | delegated direct | 2+ files, endpoint + tests |
 | T-4 | Latency instrumentation | timestamps STT-entry y TTS-dispatch en `pipeline.py:126-185`, exponer en `SkillExecutionComplete` (`events.py`), render en `event_stream_service.dart:56` | pending | high | delegated direct | 3 files cross-stack (py+dart) |
 | T-5 | Extend E2E + verify | asserts `vault/outputs/$(date +%F)/*.md` + backlinks en `test_jarvis_pipeline.sh`; casos live en `e2e_voice_to_hud_test.py`; correr full suite + doctor | pending | high | delegated direct | full suite, output no acotado a --stat |
 
