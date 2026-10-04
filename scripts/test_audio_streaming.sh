@@ -210,7 +210,7 @@ async def measure_stt_latency():
                                 t_first_partial = time.monotonic()
                                 break
                     except asyncio.TimeoutError:
-                        break
+                        continue
                 
                 if t_first_partial:
                     latency_ms = (t_first_partial - t_send) * 1000
@@ -285,7 +285,7 @@ async def measure_stt_latency():
                                 t_first_partial = time.monotonic()
                                 break
                     except asyncio.TimeoutError:
-                        break
+                        continue
                 
                 if t_first_partial:
                     latency_ms = (t_first_partial - t_send) * 1000
@@ -363,6 +363,8 @@ async def measure_tts_ttfb():
                 response = await asyncio.wait_for(ws.recv(), timeout=5.0)
                 data = json.loads(response)
                 assert data['type'] == 'session_ack'
+                # Usar la voz anunciada por el servidor (default actual)
+                ack_voice = data.get('tts_voice', 'es_MX-ald-medium')
                 
                 text = 'Hola, esto es una prueba de sintesis de voz.'
                 t_send = time.monotonic()
@@ -370,7 +372,7 @@ async def measure_tts_ttfb():
                     'type': 'tts_input',
                     'session_id': session_id,
                     'text': text,
-                    'voice': 'es_ES-pacifico',
+                    'voice': ack_voice,
                     'speed': 1.0
                 }))
                 
@@ -389,7 +391,7 @@ async def measure_tts_ttfb():
                                 # metadata only, wait for binary
                                 continue
                     except asyncio.TimeoutError:
-                        break
+                        continue
                 
                 if t_first_byte:
                     ttfb_ms = (t_first_byte - t_send) * 1000

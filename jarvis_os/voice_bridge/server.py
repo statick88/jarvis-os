@@ -272,10 +272,15 @@ class ChunkedTTSPipeline:
 
     async def _synthesize_piper(self, text: str, voice: str, speed: float) -> bytes | None:
         """Synthesize via Piper TTS."""
+        model = f"/models/piper/{voice}.onnx"
+        if voice != PIPER_VOICE and not os.path.isfile(model):
+            logger.info("Piper voice '%s' model missing, falling back to default '%s'", voice, PIPER_VOICE)
+            voice = PIPER_VOICE
+            model = f"/models/piper/{voice}.onnx"
         try:
             cmd = [
                 "piper",
-                "--model", f"/models/piper/{voice}.onnx",
+                "--model", model,
                 "--output-raw",
                 "--length-scale", str(1.0 / speed),
             ]
