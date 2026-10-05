@@ -122,10 +122,12 @@ session_manager = SessionManager()
 # ============================================================================
 
 class WhisperSTTPipeline:
-    """Incremental STT via whisper-cli subprocess.
+    """Batched STT via whisper-cli on finalized audio.
 
-    PCM chunks are piped to whisper-cli stdin; stdout is parsed for
-    partial and final results.
+    The bundled whisper-cli build supports file input only (no --stream
+    or stdin piping), so PCM chunks are buffered per session and, on
+    finalize, written to a temp WAV and transcribed in one pass.
+    Returns transcript text; partials are not available in this mode.
     """
 
     def __init__(self, model: str = WHISPER_MODEL, language: str = WHISPER_LANGUAGE) -> None:
@@ -136,114 +138,103 @@ class WhisperSTTPipeline:
         self._queue: asyncio.Queue[dict[str, Any]] = asyncio.Queue()
         self._reader_task: asyncio.Task | None = None
         self._session_audio: dict[str, list[bytes]] = defaultdict(list)
+        self._session_sr: dict[str, int] = {}
+        self._session_text: dict[str, str | None] = {}
         self._finalized: set[str] = set()
 
-    async def start_session(self, session_id: str) -> None:
-        """Start a whisper-cli subprocess for the session."""
-        if self._process is not None and self._process.returncode is None:
-            # Reuse existing subprocess if healthy
-            return
-        await self._spawn_process()
+    async def start_session(self, session_id: str, sample_rate: int = 16000) -> None:
+        """Register a session for buffered batch transcription (no subprocess)."""
+        self._session_sr[session_id] = sample_rate
+        self._session_audio.setdefault(session_id, [])
+        self._finalized.discard(session_id)
+        self._session_text.pop(session_id, None)
 
-    async def _spawn_process(self) -> None:
-        """Spawn whisper-cli with streaming options."""
-        cmd = [
-            "whisper-cli",
-            "--model", self._model,
-            "--language", self._language,
-            "--output-txt",
-            "--output-csv",
-            "--no-prints",
-            "--stream", "stdout",
-            "--",
-        ]
-        logger.info("Spawning whisper-cli: %s", " ".join(cmd))
+    async def feed_audio(self, session_id: str, pcm_bytes: bytes) -> None:
+        """Buffer PCM audio bytes for batch transcription at finalize."""
+        self._session_audio[session_id].append(pcm_bytes)
+
+    async def finalize_session(self, session_id: str) -> str | None:
+        """Transcribe buffered audio and return the transcript text (if any)."""
+        if session_id in self._finalized:
+            return self._session_text.get(session_id)
+        self._finalized.add(session_id)
+        chunks = self._session_audio.pop(session_id, [])
+        sr = self._session_sr.pop(session_id, 16000)
+        if not chunks or not any(c.strip(b"\x00") for c in chunks):
+            self._session_text[session_id] = None
+            return None
+        text = await self._transcribe_chunks(chunks, sample_rate=sr)
+        self._session_text[session_id] = text
+        return text
+
+    async def _transcribe_chunks(self, chunks: list[bytes], sample_rate: int = 16000) -> str | None:
+        """Write PCM to a temp WAV and run whisper-cli on the file."""
+        import tempfile
+        import wave
+
+        pcm = b"".join(chunks)
         try:
-            self._process = await asyncio.create_subprocess_exec(
-                *cmd,
-                stdin=asyncio.subprocess.PIPE,
+            with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as wav_file:
+                wav_path = wav_file.name
+            with wave.open(wav_path, "wb") as wav:
+                wav.setnchannels(1)
+                wav.setsampwidth(2)
+                wav.setframerate(sample_rate)
+                wav.writeframes(pcm)
+            prefix = wav_path + ".out"
+            model_path = self._model
+            if os.path.sep not in model_path:
+                model_path = f"/models/whisper/ggml-{model_path}.bin"
+            proc = await asyncio.create_subprocess_exec(
+                "whisper-cli",
+                "--model", model_path,
+                "--file", wav_path,
+                "--language", self._language,
+                "--output-txt",
+                "--output-file", prefix,
+                "--no-prints",
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
             )
-            self._stdin = self._process.stdin
-            assert self._process.stdout is not None
-            self._reader_task = asyncio.create_task(self._read_stdout(self._process.stdout))
-        except FileNotFoundError:
-            logger.warning("whisper-cli not found — STT streaming disabled")
-            self._process = None
-            self._stdin = None
-
-    async def _read_stdout(self, stdout: asyncio.StreamReader) -> None:
-        """Parse whisper-cli stdout lines."""
-        while True:
-            line = await stdout.readline()
-            if not line:
-                break
-            line_str = line.decode("utf-8", errors="replace").strip()
-            if not line_str:
-                continue
             try:
-                data = json.loads(line_str)
-                await self._queue.put(data)
-            except json.JSONDecodeError:
-                logger.debug("whisper stdout (non-JSON): %s", line_str[:200])
-
-    async def feed_audio(self, session_id: str, pcm_bytes: bytes) -> None:
-        """Send PCM audio bytes to whisper-cli stdin."""
-        if self._stdin is None or self._process is None or self._process.returncode is not None:
-            logger.debug("whisper-cli not running, buffering audio for %s", session_id)
-            self._session_audio[session_id].append(pcm_bytes)
-            return
-        self._session_audio[session_id].append(pcm_bytes)
-        try:
-            self._stdin.write(pcm_bytes)
-            await self._stdin.drain()
-        except (BrokenPipeError, ConnectionResetError):
-            logger.warning("whisper-cli pipe broken")
-
-    async def drain_buffered(self, session_id: str) -> None:
-        """Flush buffered audio to whisper-cli."""
-        if session_id in self._session_audio:
-            chunks = self._session_audio.pop(session_id)
-            if chunks and self._stdin is not None and self._process is not None and self._process.returncode is None:
-                for chunk in chunks:
-                    try:
-                        self._stdin.write(chunk)
-                        await self._stdin.drain()
-                    except (BrokenPipeError, ConnectionResetError):
-                        break
+                await asyncio.wait_for(proc.communicate(), timeout=120)
+            except TimeoutError:
+                proc.kill()
+                logger.warning("whisper-cli transcription timed out")
+                return None
+            if proc.returncode != 0:
+                logger.warning("whisper-cli failed with code %s", proc.returncode)
+                return None
+            try:
+                with open(prefix + ".txt", encoding="utf-8") as fh:
+                    text = fh.read().strip()
+            except OSError:
+                return None
+            return text or None
+        except FileNotFoundError:
+            logger.warning("whisper-cli not found — STT batch disabled")
+            return None
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("STT batch transcription failed: %s", exc)
+            return None
+        finally:
+            for path in (locals().get("wav_path", ""), locals().get("prefix", "") + ".txt"):
+                try:
+                    if path:
+                        os.remove(path)
+                except OSError:
+                    pass
 
     async def get_next_result(self, timeout: float = 5.0) -> dict[str, Any] | None:
-        """Get next STT result from whisper-cli."""
-        try:
-            return await asyncio.wait_for(self._queue.get(), timeout=timeout)
-        except TimeoutError:
-            return None
-
-    async def finalize_session(self, session_id: str) -> None:
-        """Signal end of audio for a session."""
-        if session_id in self._finalized:
-            return
-        self._finalized.add(session_id)
-        if self._session_audio.get(session_id):
-            await self.drain_buffered(session_id)
-        # Whisper final result is produced when it receives EOF or silence
-        await asyncio.sleep(0.2)
+        """Compat stub: batch mode emits finals directly, nothing streams here."""
+        await asyncio.sleep(timeout)
+        return None
 
     async def stop(self) -> None:
-        if self._reader_task:
-            self._reader_task.cancel()
-        if self._process is not None and self._process.returncode is None:
-            try:
-                if self._process.stdin:
-                    self._process.stdin.close()
-            except Exception:
-                pass
-            try:
-                await asyncio.wait_for(self._process.wait(), timeout=5)
-            except TimeoutError:
-                if self._process.returncode is None:
-                    self._process.kill()
+        self._session_audio.clear()
+        self._session_sr.clear()
+        self._session_text.clear()
+        self._finalized.clear()
 
 
 # ============================================================================
@@ -272,10 +263,15 @@ class ChunkedTTSPipeline:
 
     async def _synthesize_piper(self, text: str, voice: str, speed: float) -> bytes | None:
         """Synthesize via Piper TTS."""
+        model = f"/models/piper/{voice}.onnx"
+        if voice != PIPER_VOICE and not os.path.isfile(model):
+            logger.info("Piper voice '%s' model missing, falling back to default '%s'", voice, PIPER_VOICE)
+            voice = PIPER_VOICE
+            model = f"/models/piper/{voice}.onnx"
         try:
             cmd = [
                 "piper",
-                "--model", f"/models/piper/{voice}.onnx",
+                "--model", model,
                 "--output-raw",
                 "--length-scale", str(1.0 / speed),
             ]
@@ -457,7 +453,7 @@ async def audio_stream(websocket: WebSocket) -> None:
                                 session_id = str(control.get("session_id", uuid.uuid4()))
                                 fmt = str(control.get("format", "pcm"))
                                 sr = int(control.get("sample_rate", 16000))
-                                await _stt_pipeline.start_session(session_id)
+                                await _stt_pipeline.start_session(session_id, sample_rate=sr)
                                 session_manager.add(session_id, websocket, fmt=fmt, sr=sr)
                                 ack = SessionAck(
                                     session_id=session_id,
@@ -472,6 +468,19 @@ async def audio_stream(websocket: WebSocket) -> None:
                             elif msg_kind == "session_close":
                                 reason = str(control.get("reason", "client_disconnect"))
                                 sid = session_id
+                                transcript = await _stt_pipeline.finalize_session(sid or "")
+                                if transcript:
+                                    final = STTFinal(
+                                        session_id=sid or "",
+                                        text=transcript,
+                                        confidence=0.9,
+                                        duration_ms=0,
+                                        segments=[],
+                                    )
+                                    try:
+                                        await websocket.send_json(final.model_dump())
+                                    except Exception:
+                                        pass
                                 await _cleanup_session(sid, _stt_pipeline, _tts_pipeline, stt_task_ref[0])
                                 close_msg = SessionClose(session_id=sid or "", reason=reason)
                                 await websocket.send_json(close_msg.model_dump())

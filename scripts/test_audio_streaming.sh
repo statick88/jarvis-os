@@ -152,172 +152,101 @@ asyncio.run(test_handshake())
 # ============================================================================
 
 test_stt_partial_latency() {
-    log_step "TEST 4.2: STT Partial Latency (target < 300ms)"
+    log_step "TEST 4.2: STT Loopback con habla real (TTS genera, STT transcribe)"
 
     if ! command -v python3 >/dev/null 2>&1 || ! python3 -c "import websockets" 2>/dev/null; then
         log_fail "Python websockets no disponible — FAIL-HARD"
         return 1
     fi
 
-    log_info "Midiendo latencia STT partial (10 iteraciones)..."
-    
+    log_info "Loopback TTS->STT con habla real (3 iteraciones)..."
+
     python3 -c "
 import asyncio
 import json
 import time
 import websockets
 
-async def measure_stt_latency():
-    uri = 'ws://localhost:8080/v1/audio/stream'
-    latencies = []
-    
-    for i in range(10):
+TEXTS = ['Hola mundo', 'Esta es una prueba', 'Jarvis en linea']
+URI = 'ws://localhost:8080/v1/audio/stream'
+
+async def open_session(ws, sid):
+    await ws.send(json.dumps({'type': 'session_open', 'session_id': sid, 'format': 'pcm', 'sample_rate': 16000}))
+    response = await asyncio.wait_for(ws.recv(), timeout=5.0)
+    data = json.loads(response)
+    assert data['type'] == 'session_ack'
+    return data
+
+async def tts_bytes(text, voice):
+    async with websockets.connect(URI) as ws:
+        ack = await open_session(ws, 'tts-gen')
+        v = ack.get('tts_voice', voice)
+        await ws.send(json.dumps({'type': 'tts_input', 'session_id': 'tts-gen', 'text': text, 'voice': v, 'speed': 1.0}))
+        audio = b''
         try:
-            async with websockets.connect(uri) as ws:
-                session_id = f'stt-latency-{i:03d}'
-                
-                # Session open
-                await ws.send(json.dumps({
-                    'type': 'session_open',
-                    'session_id': session_id,
-                    'format': 'pcm',
-                    'sample_rate': 16000,
-                    'vad_mode': 'none'
-                }))
-                
-                # Wait for session_ack
-                response = await asyncio.wait_for(ws.recv(), timeout=5.0)
-                data = json.loads(response)
-                assert data['type'] == 'session_ack'
-                
-                # Generate 100ms of silence PCM (1600 samples * 2 bytes)
-                pcm = bytes(3200)
-                
-                # Send audio and measure time to stt_partial
-                t_send = time.monotonic()
-                await ws.send(bytes(pcm))
-                
-                # Collect responses for up to 5 seconds
-                t_first_partial = None
-                deadline = time.monotonic() + 5.0
-                
-                while time.monotonic() < deadline:
-                    try:
-                        msg = await asyncio.wait_for(ws.recv(), timeout=2.0)
-                        if isinstance(msg, str):
-                            data = json.loads(msg)
-                            if data.get('type') == 'stt_partial':
-                                t_first_partial = time.monotonic()
-                                break
-                    except asyncio.TimeoutError:
+            while True:
+                m = await asyncio.wait_for(ws.recv(), timeout=30)
+                if isinstance(m, bytes):
+                    audio += m
+                    if len(audio) > 40000:
                         break
-                
-                if t_first_partial:
-                    latency_ms = (t_first_partial - t_send) * 1000
-                    latencies.append(latency_ms)
-                    print(f'  Iteration {i+1}: {latency_ms:.1f}ms')
-                else:
-                    print(f'  Iteration {i+1}: NO_RESPONSE (whisper-cli may not be loaded)')
-                
-                await ws.send(json.dumps({'type': 'session_close', 'session_id': session_id}))
-        except Exception as e:
-            print(f'  Iteration {i+1}: ERROR - {e}')
-    
-    if latencies:
-        avg = sum(latencies) / len(latencies)
-        max_lat = max(latencies)
-        print(f'STT_LATENCY avg={avg:.1f}ms max={max_lat:.1f}ms n={len(latencies)}')
-        if max_lat < 300:
-            print('STT_LATENCY_PASS')
-        else:
-            print(f'STT_LATENCY_WARN: max {max_lat:.1f}ms exceeds 300ms target')
-    else:
-        print('STT_LATENCY_SKIP: no responses (whisper-cli not available)')
+        except asyncio.TimeoutError:
+            pass
+        return audio
 
-asyncio.run(measure_stt_latency())
-" 2>&1
-
-    # Check result
-    local result
-    result=$(cat /tmp/stt_latency_result.txt 2>/dev/null || echo "")
-    # The Python script prints to stdout, we capture it via command substitution
-    # Re-run and capture properly
-    python3 -c "
-import asyncio
-import json
-import time
-import websockets
-
-async def measure_stt_latency():
-    uri = 'ws://localhost:8080/v1/audio/stream'
-    latencies = []
-    
-    for i in range(10):
+async def stt_transcribe(audio):
+    async with websockets.connect(URI) as ws:
+        await open_session(ws, 'stt-loop')
+        for i in range(0, len(audio), 32000):
+            await ws.send(audio[i:i + 32000])
+        await ws.send(json.dumps({'type': 'session_close', 'session_id': 'stt-loop'}))
         try:
-            async with websockets.connect(uri) as ws:
-                session_id = f'stt-latency-{i:03d}'
-                
-                await ws.send(json.dumps({
-                    'type': 'session_open',
-                    'session_id': session_id,
-                    'format': 'pcm',
-                    'sample_rate': 16000,
-                    'vad_mode': 'none'
-                }))
-                
-                response = await asyncio.wait_for(ws.recv(), timeout=5.0)
-                data = json.loads(response)
-                assert data['type'] == 'session_ack'
-                
-                pcm = bytes(3200)
-                t_send = time.monotonic()
-                await ws.send(bytes(pcm))
-                
-                t_first_partial = None
-                deadline = time.monotonic() + 5.0
-                
-                while time.monotonic() < deadline:
+            while True:
+                m = await asyncio.wait_for(ws.recv(), timeout=120)
+                if isinstance(m, str):
                     try:
-                        msg = await asyncio.wait_for(ws.recv(), timeout=2.0)
-                        if isinstance(msg, str):
-                            data = json.loads(msg)
-                            if data.get('type') == 'stt_partial':
-                                t_first_partial = time.monotonic()
-                                break
-                    except asyncio.TimeoutError:
-                        break
-                
-                if t_first_partial:
-                    latency_ms = (t_first_partial - t_send) * 1000
-                    latencies.append(latency_ms)
-                    print(f'  Iteration {i+1}: {latency_ms:.1f}ms')
-                else:
-                    print(f'  Iteration {i+1}: NO_RESPONSE (whisper-cli may not be loaded)')
-                
-                await ws.send(json.dumps({'type': 'session_close', 'session_id': session_id}))
-        except Exception as e:
-            print(f'  Iteration {i+1}: ERROR - {e}')
-    
-    if latencies:
-        avg = sum(latencies) / len(latencies)
-        max_lat = max(latencies)
-        print(f'STT_LATENCY avg={avg:.1f}ms max={max_lat:.1f}ms n={len(latencies)}')
-        if max_lat < 300:
-            print('STT_LATENCY_PASS')
-        else:
-            print(f'STT_LATENCY_WARN: max {max_lat:.1f}ms exceeds 300ms target')
-    else:
-        print('STT_LATENCY_SKIP: no responses (whisper-cli not available)')
+                        data = json.loads(m)
+                    except Exception:
+                        continue
+                    if data.get('text'):
+                        return data['text']
+        except asyncio.TimeoutError:
+            return None
 
-asyncio.run(measure_stt_latency())
+async def main():
+    ok = 0
+    for i, text in enumerate(TEXTS):
+        try:
+            audio = await tts_bytes(text, 'es_MX-ald-medium')
+            if len(audio) < 1000:
+                print(f'  Iteration {i + 1}: NO_TTS_AUDIO')
+                continue
+            t0 = time.monotonic()
+            heard = await stt_transcribe(audio)
+            ms = (time.monotonic() - t0) * 1000
+            if heard:
+                ok += 1
+                print(f'  Iteration {i + 1}: OK \"{heard[:60]}\" e2e={ms:.0f}ms')
+            else:
+                print(f'  Iteration {i + 1}: NO_TRANSCRIPT')
+        except Exception as e:
+            print(f'  Iteration {i + 1}: ERROR - {e}')
+    if ok == len(TEXTS):
+        print('STT_LOOPBACK_PASS')
+    elif ok:
+        print(f'STT_LOOPBACK_PARTIAL: {ok}/{len(TEXTS)}')
+    else:
+        print('STT_LOOPBACK_SKIP: no transcripts')
+
+asyncio.run(main())
 " 2>&1 | tee /tmp/stt_latency_result.txt
 
-    if grep -q "STT_LATENCY_PASS" /tmp/stt_latency_result.txt 2>/dev/null; then
-        log_success "STT partial latency within 300ms target"
-    elif grep -q "STT_LATENCY_SKIP" /tmp/stt_latency_result.txt 2>/dev/null; then
-        log_fail "STT latency skipped (whisper-cli no disponible) — FAIL-HARD"
+    if grep -q "STT_LOOPBACK_PASS" /tmp/stt_latency_result.txt 2>/dev/null; then
+        log_success "STT loopback con habla real OK (3/3)"
+    elif grep -q "STT_LOOPBACK_SKIP" /tmp/stt_latency_result.txt 2>/dev/null; then
+        log_fail "STT loopback sin transcripts — FAIL-HARD"
     else
-        log_warn "STT partial latency test completado (ver output para detalles)"
+        log_warn "STT loopback parcial (ver output para detalles)"
     fi
 
     return 0
@@ -363,6 +292,8 @@ async def measure_tts_ttfb():
                 response = await asyncio.wait_for(ws.recv(), timeout=5.0)
                 data = json.loads(response)
                 assert data['type'] == 'session_ack'
+                # Usar la voz anunciada por el servidor (default actual)
+                ack_voice = data.get('tts_voice', 'es_MX-ald-medium')
                 
                 text = 'Hola, esto es una prueba de sintesis de voz.'
                 t_send = time.monotonic()
@@ -370,7 +301,7 @@ async def measure_tts_ttfb():
                     'type': 'tts_input',
                     'session_id': session_id,
                     'text': text,
-                    'voice': 'es_ES-pacifico',
+                    'voice': ack_voice,
                     'speed': 1.0
                 }))
                 
@@ -389,7 +320,7 @@ async def measure_tts_ttfb():
                                 # metadata only, wait for binary
                                 continue
                     except asyncio.TimeoutError:
-                        break
+                        continue
                 
                 if t_first_byte:
                     ttfb_ms = (t_first_byte - t_send) * 1000

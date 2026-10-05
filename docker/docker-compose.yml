@@ -76,7 +76,7 @@ services:
     environment:
       - WHISPER_MODEL=base
       - WHISPER_LANGUAGE=es
-      - PIPER_VOICE=es_ES-pacifico
+      - PIPER_VOICE=es_MX-ald-medium
       - KOKORO_VOICE=kokoro-es
       - SAMPLE_RATE=22050
       - LOG_LEVEL=info

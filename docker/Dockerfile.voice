@@ -216,6 +216,14 @@ RUN if ! ldconfig -p | grep -q libespeak-ng.so.1; then \
         rm -rf /var/lib/apt/lists/* && ldconfig; \
     fi
 
+# Piper busca espeak-ng-data en /usr/share; el paquete Debian lo instala bajo /usr/lib/<triplet>
+RUN if [ ! -e /usr/share/espeak-ng-data ] && [ -d /usr/lib/aarch64-linux-gnu/espeak-ng-data ]; then \
+        ln -s /usr/lib/aarch64-linux-gnu/espeak-ng-data /usr/share/espeak-ng-data; \
+    elif [ ! -e /usr/share/espeak-ng-data ] && [ -d /usr/lib/x86_64-linux-gnu/espeak-ng-data ]; then \
+        ln -s /usr/lib/x86_64-linux-gnu/espeak-ng-data /usr/share/espeak-ng-data; \
+    fi; \
+    test -f /usr/share/espeak-ng-data/phontab && echo "espeak-ng-data enlazado para Piper" || echo "WARNING: phontab no encontrado"
+
 # Copiar modelos Kokoro (si existen)
 RUN cp -r /models/kokoro /models/kokoro 2>/dev/null || true
 
@@ -243,7 +251,7 @@ WORKDIR /app
 # Variables de entorno
 ENV WHISPER_MODEL=base \
     WHISPER_LANGUAGE=es \
-    PIPER_VOICE=es_ES-pacifico \
+    PIPER_VOICE=es_MX-ald-medium \
     KOKORO_VOICE=kokoro-es \
     SAMPLE_RATE=22050 \
     LOG_LEVEL=info \

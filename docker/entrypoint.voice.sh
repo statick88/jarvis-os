@@ -135,6 +135,32 @@ download_kokoro_models() {
     return 1
 }
 
+download_piper_voice() {
+    local voice="${PIPER_VOICE:-es_MX-ald-medium}"
+    local model_dir="/models/piper"
+    mkdir -p "$model_dir"
+
+    if [ -f "${model_dir}/${voice}.onnx" ] && [ -f "${model_dir}/${voice}.onnx.json" ]; then
+        log_success "Voz Piper '${voice}' ya existe en $model_dir"
+        return 0
+    fi
+
+    local base_url="${PIPER_VOICES_BASE_URL:-https://huggingface.co/rhasspy/piper-voices/resolve/main}"
+    local voice_path="${PIPER_VOICE_PATH:-es/es_MX/ald/medium/es_MX-ald-medium}"
+    log_info "Descargando voz Piper '${voice}'..."
+    if curl -fL --show-error -o "${model_dir}/${voice}.onnx" \
+        "${base_url}/${voice_path}.onnx" && \
+       curl -fL --show-error -o "${model_dir}/${voice}.onnx.json" \
+        "${base_url}/${voice_path}.onnx.json" && \
+       [ -s "${model_dir}/${voice}.onnx" ]; then
+        log_success "Voz Piper descargada en $model_dir"
+        return 0
+    fi
+    log_warn "No se pudo descargar la voz Piper (Kokoro sigue como fallback)"
+    rm -f "${model_dir}/${voice}.onnx" "${model_dir}/${voice}.onnx.json"
+    return 1
+}
+
 verify_binaries() {
     log_info "Verificando binarios..."
 
@@ -179,6 +205,11 @@ verify_binaries() {
             log_error "Modelos Kokoro NO disponibles — FAIL-HARD"
             missing_critical=$((missing_critical + 1))
         fi
+    fi
+
+    # Voz Piper (necesaria para la ruta rápida; Kokoro queda como fallback)
+    if [ "$piper_available" -eq 1 ] && command -v piper >/dev/null 2>&1; then
+        download_piper_voice || log_warn "Voz Piper no disponible — TTS usará Kokoro (lento)"
     fi
 
     # Al menos un motor TTS debe estar disponible
