@@ -382,174 +382,216 @@ async def audio_stream(websocket: WebSocket) -> None:
     """
     await websocket.accept()
 
-    session_id: str | None = None
-    is_final = False
-    ping_task: asyncio.Task | None = None
-    ws_closed = False
-    stt_task_ref: list[asyncio.Task | None] = [None]
+    connection = _StreamConnection(websocket)
+    await connection.run()
 
-    async def ping_loop() -> None:
+
+class _StreamConnection:
+    """State and frame handlers for one audio-stream WebSocket."""
+
+    def __init__(self, websocket: WebSocket) -> None:
+        self._ws = websocket
+        self.session_id: str | None = None
+        self.is_final = False
+        self.ws_closed = False
+        self.stt_task: asyncio.Task | None = None
+
+    async def run(self) -> None:
+        """Serve the connection until close, then release resources."""
+        ping_task = asyncio.create_task(self._ping_loop())
+        try:
+            await self._receive_loop()
+        finally:
+            self.ws_closed = True
+            ping_task.cancel()
+            try:
+                await self._ws.close(code=1000, reason="server_shutdown")
+            except Exception:
+                pass
+            if self.session_id:
+                session_manager.remove(self.session_id)
+
+    async def _ping_loop(self) -> None:
         """Send periodic ping frames to detect broken connections."""
-        while not ws_closed:
+        while not self.ws_closed:
             await asyncio.sleep(15)
             try:
-                await websocket.send_text(json.dumps({"type": "ping", "timestamp_ms": int(time.time() * 1000)}))
+                await self._ws.send_text(json.dumps({"type": "ping", "timestamp_ms": int(time.time() * 1000)}))
             except Exception:
                 break
 
-    async def stt_loop() -> None:
+    async def _stt_loop(self) -> None:
         """Read STT results and forward to client as partial/final."""
-        while not ws_closed:
+        while not self.ws_closed:
             result = await _stt_pipeline.get_next_result(timeout=10.0)
-            if result is None:
+            if result is None or self.session_id is None:
                 continue
-            if session_id is None:
-                continue
-            is_partial = not result.get("no_speech", False) and not result.get("done", False)
-            if is_partial:
-                text = result.get("text", "").strip()
-                if text:
-                    msg = STTPartial(session_id=session_id, text=text, confidence=0.85)
-                    try:
-                        await websocket.send_json(msg.model_dump())
-                    except Exception:
-                        break
-            else:
-                text = result.get("text", "").strip()
-                if text or result.get("done", False):
-                    msg = STTFinal(
-                        session_id=session_id,
-                        text=text,
-                        confidence=0.9,
-                        duration_ms=result.get("t_duration", 0),
-                        segments=[],
-                    )
-                    try:
-                        await websocket.send_json(msg.model_dump())
-                    except Exception:
-                        break
-                    session_manager.touch(session_id)
+            await self._forward_stt_result(result)
 
-    async def receive_loop() -> None:
-        nonlocal session_id, is_final, ws_closed
+    async def _forward_stt_result(self, result: dict[str, Any]) -> None:
+        """Forward one STT result as a partial or final message."""
+        session_id = self.session_id
+        if session_id is None:
+            return
+        is_partial = not result.get("no_speech", False) and not result.get("done", False)
+        text = result.get("text", "").strip()
+        if is_partial:
+            if text:
+                await self._send(
+                    STTPartial(session_id=session_id, text=text, confidence=0.85).model_dump()
+                )
+        elif text or result.get("done", False):
+            await self._send(
+                STTFinal(
+                    session_id=session_id,
+                    text=text,
+                    confidence=0.9,
+                    duration_ms=result.get("t_duration", 0),
+                    segments=[],
+                ).model_dump()
+            )
+            session_manager.touch(session_id)
+
+    async def _send(self, payload: dict[str, Any]) -> bool:
+        """Send a JSON payload, returning False when the socket is gone."""
         try:
-            while not ws_closed:
-                msg = await websocket.receive()
+            await self._ws.send_json(payload)
+            return True
+        except Exception:
+            return False
+
+    async def _receive_loop(self) -> None:
+        try:
+            while not self.ws_closed:
+                msg = await self._ws.receive()
                 msg_type = msg.get("type")
                 if msg_type == "websocket.disconnect":
                     break
-
                 if msg_type == "websocket.receive":
-                    data = msg.get("bytes")
-                    text_data = msg.get("text")
-
-                    if text_data is not None:
-                        # JSON control frame
-                        try:
-                            control = json.loads(text_data)
-                            msg_kind = control.get("type", "")
-
-                            if msg_kind == "session_open":
-                                session_id = str(control.get("session_id", uuid.uuid4()))
-                                fmt = str(control.get("format", "pcm"))
-                                sr = int(control.get("sample_rate", 16000))
-                                await _stt_pipeline.start_session(session_id, sample_rate=sr)
-                                session_manager.add(session_id, websocket, fmt=fmt, sr=sr)
-                                ack = SessionAck(
-                                    session_id=session_id,
-                                    websocket_enabled=True,
-                                    stt_model=WHISPER_MODEL,
-                                    tts_voice=PIPER_VOICE,
-                                )
-                                await websocket.send_json(ack.model_dump())
-                                if stt_task_ref[0] is None:
-                                    stt_task_ref[0] = asyncio.create_task(stt_loop())
-
-                            elif msg_kind == "session_close":
-                                reason = str(control.get("reason", "client_disconnect"))
-                                sid = session_id
-                                transcript = await _stt_pipeline.finalize_session(sid or "")
-                                if transcript:
-                                    final = STTFinal(
-                                        session_id=sid or "",
-                                        text=transcript,
-                                        confidence=0.9,
-                                        duration_ms=0,
-                                        segments=[],
-                                    )
-                                    try:
-                                        await websocket.send_json(final.model_dump())
-                                    except Exception:
-                                        pass
-                                await _cleanup_session(sid, _stt_pipeline, _tts_pipeline, stt_task_ref[0])
-                                close_msg = SessionClose(session_id=sid or "", reason=reason)
-                                await websocket.send_json(close_msg.model_dump())
-                                break
-
-                            elif msg_kind == "tts_input":
-                                sid = str(control.get("session_id", ""))
-                                text = str(control.get("text", ""))
-                                voice = str(control.get("voice", PIPER_VOICE))
-                                speed = float(control.get("speed", 1.0))
-                                if sid and text:
-                                    audio = await _tts_pipeline.synthesize_chunk(sid, text, voice=voice, speed=speed)
-                                    if audio:
-                                        chunk = TTSChunk(
-                                            session_id=sid,
-                                            format="pcm",
-                                            sample_rate=SAMPLE_RATE,
-                                            is_final=not text or len(text) < 50,
-                                            duration_ms=CHUNK_DURATION_MS,
-                                        )
-                                        await websocket.send_bytes(audio)
-                                        await websocket.send_json(chunk.model_dump())
-                                        session_manager.touch(sid)
-
-                            elif msg_kind == "ping":
-                                pong = {"type": "pong", "timestamp_ms": int(time.time() * 1000)}
-                                await websocket.send_text(json.dumps(pong))
-
-                        except (json.JSONDecodeError, ValueError) as exc:
-                            logger.warning("Invalid JSON control frame: %s", exc)
-                            if session_id:
-                                err = ErrorMsg(session_id=session_id, code="invalid_frame", message=str(exc))
-                                try:
-                                    await websocket.send_json(err.model_dump())
-                                except Exception:
-                                    pass
-
-                    elif data is not None and session_id is not None:
-                        # Binary audio frame
-                        pcm_bytes = bytes(data)
-                        if pcm_bytes:
-                            await _stt_pipeline.feed_audio(session_id, pcm_bytes)
-                            if is_final:
-                                await _stt_pipeline.finalize_session(session_id)
-                                is_final = False
-                            session_manager.touch(session_id)
-
+                    await self._handle_receive(msg)
         except WebSocketDisconnect:
-            logger.info("WebSocket disconnected: %s", session_id)
+            logger.info("WebSocket disconnected: %s", self.session_id)
         except Exception as exc:
             logger.exception("receive_loop error: %s", exc)
         finally:
-            ws_closed = True
-            if session_id:
-                await _cleanup_session(session_id, _stt_pipeline, _tts_pipeline, stt_task_ref[0])
+            self.ws_closed = True
+            if self.session_id:
+                await _cleanup_session(self.session_id, _stt_pipeline, _tts_pipeline, self.stt_task)
 
-    try:
-        ping_task = asyncio.create_task(ping_loop())
-        await receive_loop()
-    finally:
-        ws_closed = True
-        if ping_task:
-            ping_task.cancel()
+    async def _handle_receive(self, msg: dict[str, Any]) -> None:
+        """Route one receive event to its text/binary handler."""
+        data = msg.get("bytes")
+        text_data = msg.get("text")
+        if text_data is not None:
+            await self._handle_text_frame(text_data)
+        elif data is not None and self.session_id is not None:
+            await self._handle_binary_frame(bytes(data))
+
+    async def _handle_text_frame(self, text_data: str) -> None:
+        """Parse and dispatch one JSON control frame."""
         try:
-            await websocket.close(code=1000, reason="server_shutdown")
-        except Exception:
-            pass
-        if session_id:
-            session_manager.remove(session_id)
+            control = json.loads(text_data)
+        except (json.JSONDecodeError, ValueError) as exc:
+            logger.warning("Invalid JSON control frame: %s", exc)
+            if self.session_id:
+                err = ErrorMsg(session_id=self.session_id, code="invalid_frame", message=str(exc))
+                try:
+                    await self._ws.send_json(err.model_dump())
+                except Exception:
+                    pass
+            return
+        msg_kind = control.get("type", "")
+        try:
+            if msg_kind == "session_open":
+                await self._handle_session_open(control)
+            elif msg_kind == "session_close":
+                await self._handle_session_close(control)
+            elif msg_kind == "tts_input":
+                await self._handle_tts_input(control)
+            elif msg_kind == "ping":
+                pong = {"type": "pong", "timestamp_ms": int(time.time() * 1000)}
+                await self._ws.send_text(json.dumps(pong))
+        except ValueError as exc:
+            logger.warning("Invalid JSON control frame: %s", exc)
+            if self.session_id:
+                err = ErrorMsg(session_id=self.session_id, code="invalid_frame", message=str(exc))
+                try:
+                    await self._ws.send_json(err.model_dump())
+                except Exception:
+                    pass
+
+    async def _handle_session_open(self, control: dict[str, Any]) -> None:
+        """Register the session and acknowledge it to the client."""
+        session_id = str(control.get("session_id", uuid.uuid4()))
+        fmt = str(control.get("format", "pcm"))
+        sr = int(control.get("sample_rate", 16000))
+        self.session_id = session_id
+        await _stt_pipeline.start_session(session_id, sample_rate=sr)
+        session_manager.add(session_id, self._ws, fmt=fmt, sr=sr)
+        ack = SessionAck(
+            session_id=session_id,
+            websocket_enabled=True,
+            stt_model=WHISPER_MODEL,
+            tts_voice=PIPER_VOICE,
+        )
+        await self._ws.send_json(ack.model_dump())
+        if self.stt_task is None:
+            self.stt_task = asyncio.create_task(self._stt_loop())
+
+    async def _handle_session_close(self, control: dict[str, Any]) -> None:
+        """Transcribe buffered audio, emit the final, and close."""
+        reason = str(control.get("reason", "client_disconnect"))
+        sid = self.session_id
+        transcript = await _stt_pipeline.finalize_session(sid or "")
+        if transcript:
+            final = STTFinal(
+                session_id=sid or "",
+                text=transcript,
+                confidence=0.9,
+                duration_ms=0,
+                segments=[],
+            )
+            try:
+                await self._ws.send_json(final.model_dump())
+            except Exception:
+                pass
+        await _cleanup_session(sid, _stt_pipeline, _tts_pipeline, self.stt_task)
+        close_msg = SessionClose(session_id=sid or "", reason=reason)
+        await self._ws.send_json(close_msg.model_dump())
+        self.ws_closed = True
+
+    async def _handle_tts_input(self, control: dict[str, Any]) -> None:
+        """Synthesize text and stream the audio bytes back."""
+        sid = str(control.get("session_id", ""))
+        text = str(control.get("text", ""))
+        voice = str(control.get("voice", PIPER_VOICE))
+        speed = float(control.get("speed", 1.0))
+        if not sid or not text:
+            return
+        audio = await _tts_pipeline.synthesize_chunk(sid, text, voice=voice, speed=speed)
+        if not audio:
+            return
+        chunk = TTSChunk(
+            session_id=sid,
+            format="pcm",
+            sample_rate=SAMPLE_RATE,
+            is_final=not text or len(text) < 50,
+            duration_ms=CHUNK_DURATION_MS,
+        )
+        await self._ws.send_bytes(audio)
+        await self._ws.send_json(chunk.model_dump())
+        session_manager.touch(sid)
+
+    async def _handle_binary_frame(self, pcm_bytes: bytes) -> None:
+        """Buffer one PCM frame, finalizing when flagged."""
+        session_id = self.session_id
+        if not pcm_bytes or session_id is None:
+            return
+        await _stt_pipeline.feed_audio(session_id, pcm_bytes)
+        if self.is_final:
+            await _stt_pipeline.finalize_session(session_id)
+            self.is_final = False
+        session_manager.touch(session_id)
 
 
 async def _cleanup_session(
