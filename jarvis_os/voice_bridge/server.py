@@ -249,7 +249,7 @@ class ChunkedTTSPipeline:
         self._sample_rate = sample_rate
         self._session_synthesisers: dict[str, Any] = {}
 
-    async def synthesize_chunk(self, session_id: str, text: str, voice: str = PIPER_VOICE, speed: float = 1.0) -> bytes | None:
+    async def synthesize_chunk(self, text: str, voice: str = PIPER_VOICE, speed: float = 1.0) -> bytes | None:
         """Synthesize a text chunk to PCM bytes using Piper or Kokoro."""
         if not text or not text.strip():
             return None
@@ -476,7 +476,7 @@ class _StreamConnection:
         finally:
             self.ws_closed = True
             if self.session_id:
-                await _cleanup_session(self.session_id, _stt_pipeline, _tts_pipeline, self.stt_task)
+                await _cleanup_session(self.session_id, _stt_pipeline)
 
     async def _handle_receive(self, msg: dict[str, Any]) -> None:
         """Route one receive event to its text/binary handler."""
@@ -555,7 +555,7 @@ class _StreamConnection:
                 await self._ws.send_json(final.model_dump())
             except Exception:
                 pass
-        await _cleanup_session(sid, _stt_pipeline, _tts_pipeline, self.stt_task)
+        await _cleanup_session(sid, _stt_pipeline)
         close_msg = SessionClose(session_id=sid or "", reason=reason)
         await self._ws.send_json(close_msg.model_dump())
         self.ws_closed = True
@@ -568,7 +568,7 @@ class _StreamConnection:
         speed = float(control.get("speed", 1.0))
         if not sid or not text:
             return
-        audio = await _tts_pipeline.synthesize_chunk(sid, text, voice=voice, speed=speed)
+        audio = await _tts_pipeline.synthesize_chunk(text, voice=voice, speed=speed)
         if not audio:
             return
         chunk = TTSChunk(
@@ -597,8 +597,6 @@ class _StreamConnection:
 async def _cleanup_session(
     session_id: str | None,
     stt_pipeline: WhisperSTTPipeline,
-    tts_pipeline: ChunkedTTSPipeline,
-    stt_task: asyncio.Task | None,
 ) -> None:
     """Clean up session resources."""
     if session_id:

@@ -74,6 +74,8 @@ class KnowledgeGraphBuilder:
         index = await self._load_index()
         active_entries = [e for e in index.files.values() if not e.deleted]
         notes_by_id = await self._load_notes(active_entries)
+        if root_note_id is not None:
+            notes_by_id = self._limit_depth(notes_by_id, root_note_id, max_depth)
         nodes = self._build_nodes(notes_by_id, include_orphans)
         edges = self._build_edges(notes_by_id, nodes)
 
@@ -93,6 +95,28 @@ class KnowledgeGraphBuilder:
             if note is not None:
                 notes_by_id[note.id] = note
         return notes_by_id
+
+    @staticmethod
+    def _limit_depth(
+        notes_by_id: dict[str, VaultNote], root_note_id: str, max_depth: int
+    ) -> dict[str, VaultNote]:
+        """Keep only notes within max_depth hops of the root note."""
+        if root_note_id not in notes_by_id or max_depth < 0:
+            return {}
+        reachable = {root_note_id}
+        frontier = {root_note_id}
+        for _ in range(max_depth):
+            next_frontier: set[str] = set()
+            for note_id in frontier:
+                note = notes_by_id.get(note_id)
+                if note is None:
+                    continue
+                for link in note.all_links:
+                    if link.target in notes_by_id and link.target not in reachable:
+                        reachable.add(link.target)
+                        next_frontier.add(link.target)
+            frontier = next_frontier
+        return {nid: notes_by_id[nid] for nid in reachable}
 
     @staticmethod
     def _build_nodes(

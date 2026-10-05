@@ -41,7 +41,7 @@ def run(input_data: dict[str, Any]) -> dict[str, Any]:
         elif action == "add_task":
             return _add_task(input_data, vault_path, date_str)
         elif action == "complete_task":
-            return _complete_task(input_data, vault_path, date_str)
+            return _complete_task(input_data)
         elif action == "set_focus":
             return _set_focus(input_data, vault_path, date_str)
         elif action == "add_blocker":
@@ -219,7 +219,7 @@ def _add_task(input_data: dict[str, Any], vault_path: Path, date_str: str) -> di
     }
 
 
-def _complete_task(input_data: dict[str, Any], vault_path: Path, date_str: str) -> dict[str, Any]:
+def _complete_task(input_data: dict[str, Any]) -> dict[str, Any]:
     return {"success": True, "data": {"task_id": input_data.get("task_id", ""), "completed": True}}
 
 

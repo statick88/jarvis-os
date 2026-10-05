@@ -34,11 +34,11 @@ def run(input_data: dict[str, Any]) -> dict[str, Any]:
         elif action == "analyze":
             return {"success": True, "data": {"analyzed_count": 0}}
         elif action == "report":
-            return _report(vault_path)
+            return _report()
         elif action == "configure":
             return _configure(input_data, vault_path)
         elif action == "list_feeds":
-            return _list_feeds(vault_path)
+            return _list_feeds()
         else:
             return {"success": False, "error": f"Unknown action: {action}"}
     except Exception as exc:
@@ -191,7 +191,7 @@ def _write_raw_items(vault_path: Path, raw_items: list[dict[str, Any]]) -> None:
     out_path.write_text(lines, encoding="utf-8")
 
 
-def _report(vault_path: Path) -> dict[str, Any]:
+def _report() -> dict[str, Any]:
     today = datetime.now(UTC).strftime("%Y-%m-%d")
     return {
         "success": True,
@@ -221,7 +221,7 @@ def _configure(input_data: dict[str, Any], vault_path: Path) -> dict[str, Any]:
     return {"success": True, "data": {"feeds": feeds}}
 
 
-def _list_feeds(vault_path: Path) -> dict[str, Any]:
+def _list_feeds() -> dict[str, Any]:
     return {"success": True, "data": {"feeds": _default_feeds()}}
 
 

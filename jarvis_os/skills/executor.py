@@ -121,7 +121,7 @@ class SkillExecutor:
             if execution_type == ExecutionType.PYTHON:
                 result = await self._run_python(skill, input_data, entrypoint, effective_timeout)
             elif execution_type == ExecutionType.BASH:
-                result = await self._run_bash(skill, input_data, entrypoint, script, effective_timeout)
+                result = await self._run_bash(skill, entrypoint, script, effective_timeout)
             elif execution_type == ExecutionType.HYBRID:
                 result = await self._run_hybrid(skill, input_data, entrypoint, script, effective_timeout)
             else:  # pragma: no cover — ExecutionType is closed
@@ -233,7 +233,6 @@ class SkillExecutor:
     async def _run_bash(
         self,
         skill: SkillMetadata,
-        input_data: dict[str, Any],
         entrypoint: str | None,
         script: str | None,
         timeout: int,
@@ -286,7 +285,7 @@ class SkillExecutor:
         script: str | None,
         timeout: int,
     ) -> SkillExecutionResult:
-        bash_result = await self._run_bash(skill, input_data, entrypoint, script, timeout)
+        bash_result = await self._run_bash(skill, entrypoint, script, timeout)
         if bash_result.status != ExecutionStatus.SUCCESS:
             return bash_result
         target = entrypoint or skill.frontmatter.entrypoint or skill.frontmatter.default_entrypoint

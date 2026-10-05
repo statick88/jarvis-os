@@ -47,7 +47,7 @@ class OSControlSkill(BaseSkill):
             if operation == "get_system_metrics":
                 return await self._get_system_metrics(parameters)
             elif operation == "execute_system_command":
-                return await self._execute_system_command(parameters, context)
+                return await self._execute_system_command(parameters)
             else:
                 return {"status": "error", "message": f"Unknown operation: {operation}"}
         except Exception as exc:
@@ -131,7 +131,7 @@ class OSControlSkill(BaseSkill):
             "percent": disk.percent,
         }
 
-    async def _execute_system_command(self, params: dict[str, Any], context: dict[str, Any]) -> dict[str, Any]:
+    async def _execute_system_command(self, params: dict[str, Any]) -> dict[str, Any]:
         command = params.get("command", "")
         args = params.get("args", [])
         timeout = params.get("timeout", 30)

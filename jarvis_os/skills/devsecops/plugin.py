@@ -41,9 +41,9 @@ class DevSecOpsSkill(BaseSkill):
             elif operation == "list_s3_objects":
                 return await self._list_s3_objects(parameters)
             elif operation == "list_dynamodb_tables":
-                return await self._list_dynamodb_tables(parameters)
+                return await self._list_dynamodb_tables()
             elif operation == "list_sqs_queues":
-                return await self._list_sqs_queues(parameters)
+                return await self._list_sqs_queues()
             elif operation == "list_containers":
                 return await self._list_containers(parameters)
             else:
@@ -165,7 +165,7 @@ class DevSecOpsSkill(BaseSkill):
         except Exception as exc:
             return {"status": "error", "message": f"S3 list failed: {exc}"}
 
-    async def _list_dynamodb_tables(self, params: dict[str, Any]) -> dict[str, Any]:
+    async def _list_dynamodb_tables(self) -> dict[str, Any]:
         endpoint = os.getenv("LOCALSTACK_ENDPOINT", _DEFAULT_LOCALSTACK_ENDPOINT)
         try:
             import boto3  # type: ignore[import-untyped]
@@ -176,7 +176,7 @@ class DevSecOpsSkill(BaseSkill):
         except Exception as exc:
             return {"status": "error", "message": f"DynamoDB list failed: {exc}"}
 
-    async def _list_sqs_queues(self, params: dict[str, Any]) -> dict[str, Any]:
+    async def _list_sqs_queues(self) -> dict[str, Any]:
         endpoint = os.getenv("LOCALSTACK_ENDPOINT", _DEFAULT_LOCALSTACK_ENDPOINT)
         try:
             import boto3  # type: ignore[import-untyped]

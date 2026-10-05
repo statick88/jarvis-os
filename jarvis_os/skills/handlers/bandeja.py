@@ -38,13 +38,13 @@ def run(input_data: dict[str, Any]) -> dict[str, Any]:
         if action == "capture":
             return _capture(input_data, vault_path, date_str)
         elif action == "process":
-            return _process(vault_path, date_str)
+            return _process()
         elif action == "summarize":
-            return _summarize(vault_path, date_str)
+            return _summarize()
         elif action == "list":
-            return _list(vault_path, date_str, int(input_data.get("max_items", 50)))
+            return _list()
         elif action == "clear":
-            return _clear(vault_path, date_str)
+            return _clear()
         else:
             return {"success": False, "error": f"Unknown action: {action}"}
     except Exception as exc:
@@ -99,7 +99,7 @@ def _capture(input_data: dict[str, Any], vault_path: Path, date_str: str) -> dic
         existing = inbox_path.read_text(encoding="utf-8")
         inbox_path.write_text(existing + "\n" + block, encoding="utf-8")
     else:
-        fm = _frontmatter(f"inbox_{date_str}", ["inbox", "raw", "daily"], vault_path, date=date_str)
+        fm = _frontmatter(f"inbox_{date_str}", ["inbox", "raw", "daily"], date=date_str)
         inbox_path.write_text(fm + "\n" + block, encoding="utf-8")
 
     return {
@@ -123,23 +123,23 @@ def _capture(input_data: dict[str, Any], vault_path: Path, date_str: str) -> dic
     }
 
 
-def _process(vault_path: Path, date_str: str) -> dict[str, Any]:
+def _process() -> dict[str, Any]:
     return {"success": True, "data": {"processed": 0, "to_plan": 0, "to_tendencias": 0, "to_ideas": 0}}
 
 
-def _summarize(vault_path: Path, date_str: str) -> dict[str, Any]:
+def _summarize() -> dict[str, Any]:
     return {"success": True, "data": {"summary": "No inbox items to summarize.", "count": 0}}
 
 
-def _list(vault_path: Path, date_str: str, max_items: int) -> dict[str, Any]:
+def _list() -> dict[str, Any]:
     return {"success": True, "data": {"items": [], "count": 0}}
 
 
-def _clear(vault_path: Path, date_str: str) -> dict[str, Any]:
+def _clear() -> dict[str, Any]:
     return {"success": True, "data": {"archived": 0}}
 
 
-def _frontmatter(note_id: str, tags: list[str], vault_path: Path, **kwargs: Any) -> str:
+def _frontmatter(note_id: str, tags: list[str], **kwargs: Any) -> str:
     ts = datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
     lines = ["---", f"id: {note_id}", f"tags: {tags}", f"created: \"{ts}\"", f"modified: \"{ts}\"", "source: \"skill.bandeja\""]
     for k, v in kwargs.items():

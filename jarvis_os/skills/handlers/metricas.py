@@ -83,7 +83,7 @@ def _write_report(vault_path: Path, data: dict[str, Any]) -> list[dict[str, Any]
             else:
                 out_path.write_text(md, encoding="utf-8")
         else:
-            fm = _frontmatter("metricas_" + today, ["metricas", "system", "docker", "host"], vault_path)
+            fm = _frontmatter("metricas_" + today, ["metricas", "system", "docker", "host"])
             out_path.write_text(fm + "\n\n" + md, encoding="utf-8")
         return [
             {
@@ -224,7 +224,7 @@ def _format_markdown(data: dict[str, Any]) -> str:
     return "\n".join(lines)
 
 
-def _frontmatter(note_id: str, tags: list[str], vault_path: Path) -> str:
+def _frontmatter(note_id: str, tags: list[str]) -> str:
     ts = _now_iso()
     return "\n".join([
         "---",
