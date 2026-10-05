@@ -1,0 +1,2155 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Personal OS orchestrated by voice and Markdown (Free Software - GPL v3.0)">
+      
+      
+        <meta name="author" content="Diego Medardo Saavedra García">
+      
+      
+        <link rel="canonical" href="https://statick88.github.io/jarvis-os/development-workflows/">
+      
+      
+        <link rel="prev" href="../skills/">
+      
+      
+        <link rel="next" href="../testing-strategy/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
+    
+    
+      
+        <title>Flujos de Desarrollo - jarvis-os Documentation</title>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/stylesheets/main.ec1eaa64.min.css">
+      
+        
+        <link rel="stylesheet" href="../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="blue">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#development-workflows-responsibilities-jarvis-os" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+<header class="md-header" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href=".." title="jarvis-os Documentation" class="md-header__button md-logo" aria-label="jarvis-os Documentation" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            jarvis-os Documentation
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Flujos de Desarrollo
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+    
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+        <div class="md-search__suggest" data-md-component="search-suggest"></div>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/statick88/jarvis-os" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    statick88/jarvis-os
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+            
+<nav class="md-tabs" aria-label="Tabs" data-md-component="tabs">
+  <div class="md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href=".." class="md-tabs__link">
+        
+  
+  
+    
+  
+  Inicio
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../getting-started/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Guía de Inicio Rápido
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../architecture/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Arquitectura del Sistema
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../skills/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Habilidades (Skills)
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+    
+  
+  
+    <li class="md-tabs__item md-tabs__item--active">
+      <a href="./" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Flujos de Desarrollo
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../testing-strategy/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Estrategia de Pruebas
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../contributing/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Contribuir
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../license/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Licencia GPL v3.0
+
+      </a>
+    </li>
+  
+
+      
+    </ul>
+  </div>
+</nav>
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+  
+
+
+<nav class="md-nav md-nav--primary md-nav--lifted" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href=".." title="jarvis-os Documentation" class="md-nav__button md-logo" aria-label="jarvis-os Documentation" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    jarvis-os Documentation
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/statick88/jarvis-os" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    statick88/jarvis-os
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href=".." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Inicio
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../getting-started/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Guía de Inicio Rápido
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../architecture/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Arquitectura del Sistema
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../skills/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Habilidades (Skills)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Flujos de Desarrollo
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Flujos de Desarrollo
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#repository-structure-polyrepo" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Repository Structure (Polyrepo)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#branching-strategy-gitflow-light" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Branching Strategy (GitFlow Light)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Branching Strategy (GitFlow Light)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#branch-rules" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Branch Rules
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#work-unit-commits-conventional-commits" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Work-Unit Commits (Conventional Commits)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Work-Unit Commits (Conventional Commits)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#commit-message-format" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Commit Message Format
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#scopes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Scopes
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#pull-request-template" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Pull Request Template
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#code-review-guidelines" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Code Review Guidelines
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Code Review Guidelines">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#reviewer-responsibilities" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Reviewer Responsibilities
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#review-checklist" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Review Checklist
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#approval-requirements" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Approval Requirements
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#development-workflow-per-feature" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Development Workflow (Per Feature)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Development Workflow (Per Feature)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#1-start-feature" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1. Start Feature
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#2-develop-with-work-unit-commits" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2. Develop with Work-Unit Commits
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#3-push-ci" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3. Push + CI
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#4-create-pr" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4. Create PR
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#5-review-iterate" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5. Review + Iterate
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#6-merge" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        6. Merge
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#7-sync" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        7. Sync
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#release-workflow" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Release Workflow
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Release Workflow">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#1-release-branch" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1. Release Branch
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#2-release-pr" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2. Release PR
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#3-tag-release" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3. Tag + Release
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#4-hotfix" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4. Hotfix
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#responsibility-matrix-raci" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Responsibility Matrix (RACI)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#definition-of-done-per-work-unit" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Definition of Done (Per Work Unit)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#incident-response-production" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Incident Response (Production)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Incident Response (Production)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#severity-levels" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Severity Levels
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#runbook-location" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Runbook Location
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#tooling-standards" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Tooling Standards
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#onboarding-checklist-new-team-member" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Onboarding Checklist (New Team Member)
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../testing-strategy/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Estrategia de Pruebas
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../contributing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Contribuir
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../license/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Licencia GPL v3.0
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#repository-structure-polyrepo" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Repository Structure (Polyrepo)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#branching-strategy-gitflow-light" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Branching Strategy (GitFlow Light)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Branching Strategy (GitFlow Light)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#branch-rules" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Branch Rules
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#work-unit-commits-conventional-commits" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Work-Unit Commits (Conventional Commits)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Work-Unit Commits (Conventional Commits)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#commit-message-format" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Commit Message Format
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#scopes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Scopes
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#pull-request-template" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Pull Request Template
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#code-review-guidelines" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Code Review Guidelines
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Code Review Guidelines">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#reviewer-responsibilities" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Reviewer Responsibilities
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#review-checklist" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Review Checklist
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#approval-requirements" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Approval Requirements
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#development-workflow-per-feature" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Development Workflow (Per Feature)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Development Workflow (Per Feature)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#1-start-feature" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1. Start Feature
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#2-develop-with-work-unit-commits" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2. Develop with Work-Unit Commits
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#3-push-ci" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3. Push + CI
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#4-create-pr" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4. Create PR
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#5-review-iterate" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5. Review + Iterate
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#6-merge" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        6. Merge
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#7-sync" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        7. Sync
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#release-workflow" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Release Workflow
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Release Workflow">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#1-release-branch" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1. Release Branch
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#2-release-pr" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2. Release PR
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#3-tag-release" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3. Tag + Release
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#4-hotfix" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4. Hotfix
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#responsibility-matrix-raci" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Responsibility Matrix (RACI)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#definition-of-done-per-work-unit" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Definition of Done (Per Work Unit)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#incident-response-production" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Incident Response (Production)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Incident Response (Production)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#severity-levels" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Severity Levels
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#runbook-location" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Runbook Location
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#tooling-standards" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Tooling Standards
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#onboarding-checklist-new-team-member" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Onboarding Checklist (New Team Member)
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<h1 id="development-workflows-responsibilities-jarvis-os">Development Workflows &amp; Responsibilities — JARVIS-OS</h1>
+<h2 id="repository-structure-polyrepo">Repository Structure (Polyrepo)</h2>
+<div class="highlight"><pre><span></span><code>statick88/
+├── jarvis-contracts/          # Shared OpenAPI spec + generated types
+│   ├── openapi.yaml           # Single source of truth
+│   ├── package.json           # npm package: @jarvis/contracts
+│   ├── pubspec.yaml           # Dart package: jarvis_contracts
+│   └── .github/workflows/     # Contract publishing
+│
+├── jarvis-server/             # Backend + Frontend + Infra
+│   ├── backend/               # FastAPI (Python)
+│   ├── frontend/              # React + TypeScript
+│   ├── infra/                 # Docker, K8s, Terraform
+│   └── .github/workflows/     # CI/CD + SonarQube
+│
+└── jarvis-mobile/             # Flutter Mobile Client
+    ├── lib/                   # Dart source
+    ├── integration_test/      # Patrol e2e
+    └── .github/workflows/     # CI/CD + SonarQube + Tailscale
+</code></pre></div>
+<hr />
+<h2 id="branching-strategy-gitflow-light">Branching Strategy (GitFlow Light)</h2>
+<div class="highlight"><pre><span></span><code>main ────────────────────────────────────────────►
+  │                    ▲
+  │                    │ hotfix/*
+  │                    │
+develop ────────────────────────────────────────►
+  │           │           │           │
+  │        feature/*  feature/*   feature/*
+  │           │           │           │
+  └───────────┴───────────┴───────────┘
+              │
+           release/vX.Y.Z
+              │
+              ▼
+            main (tag)
+</code></pre></div>
+<h3 id="branch-rules">Branch Rules</h3>
+<table>
+<thead>
+<tr>
+<th>Branch</th>
+<th>Protection</th>
+<th>Deploy</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>main</code></td>
+<td>Required reviews (2), CI pass, linear history</td>
+<td>Production (tagged)</td>
+</tr>
+<tr>
+<td><code>develop</code></td>
+<td>Required reviews (1), CI pass</td>
+<td>Staging</td>
+</tr>
+<tr>
+<td><code>feature/*</code></td>
+<td>CI pass</td>
+<td>Preview (optional)</td>
+</tr>
+<tr>
+<td><code>release/*</code></td>
+<td>CI pass, no new features</td>
+<td>Staging → Production</td>
+</tr>
+<tr>
+<td><code>hotfix/*</code></td>
+<td>CI pass, 1 review</td>
+<td>Production (urgent)</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="work-unit-commits-conventional-commits">Work-Unit Commits (Conventional Commits)</h2>
+<p><strong>Every commit must be a reviewable work unit:</strong></p>
+<div class="highlight"><pre><span></span><code><span class="c1"># Good: Single logical change with tests</span>
+feat<span class="o">(</span>backend<span class="o">)</span>:<span class="w"> </span>add<span class="w"> </span>skill<span class="w"> </span>execution<span class="w"> </span>endpoint<span class="w"> </span>with<span class="w"> </span>vault<span class="w"> </span>logging
+
+-<span class="w"> </span>Add<span class="w"> </span>POST<span class="w"> </span>/api/v1/execute<span class="w"> </span>endpoint
+-<span class="w"> </span>Integrate<span class="w"> </span>VaultOutputLogger<span class="w"> </span><span class="k">for</span><span class="w"> </span>persistence
+-<span class="w"> </span>Emit<span class="w"> </span>SkillExecutionComplete<span class="w"> </span>+<span class="w"> </span>VaultWriteEvent
+-<span class="w"> </span>Unit<span class="w"> </span>tests:<span class="w"> </span><span class="m">95</span>%<span class="w"> </span>coverage
+-<span class="w"> </span>Integration<span class="w"> </span>test:<span class="w"> </span>full<span class="w"> </span>flow
+
+<span class="c1"># Good: Refactor with tests</span>
+refactor<span class="o">(</span>mobile<span class="o">)</span>:<span class="w"> </span>extract<span class="w"> </span>TailscaleClient<span class="w"> </span><span class="k">for</span><span class="w"> </span>testability
+
+-<span class="w"> </span>Create<span class="w"> </span>TailscaleClient<span class="w"> </span>interface
+-<span class="w"> </span>Implement<span class="w"> </span>TsNetClient<span class="w"> </span>and<span class="w"> </span>MockTailscaleClient
+-<span class="w"> </span>Update<span class="w"> </span>ApiClient<span class="w"> </span>to<span class="w"> </span>use<span class="w"> </span>dependency<span class="w"> </span>injection
+-<span class="w"> </span>Widget<span class="w"> </span>tests<span class="w"> </span>updated
+
+<span class="c1"># Bad: Mixed changes, no tests</span>
+fix<span class="w"> </span>stuff<span class="w"> </span>and<span class="w"> </span>add<span class="w"> </span>feature
+</code></pre></div>
+<h3 id="commit-message-format">Commit Message Format</h3>
+<div class="highlight"><pre><span></span><code>&lt;type&gt;(&lt;scope&gt;): &lt;subject&gt;
+
+&lt;body&gt;
+
+&lt;footer&gt;
+</code></pre></div>
+<table>
+<thead>
+<tr>
+<th>Type</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>feat</code></td>
+<td>New feature</td>
+</tr>
+<tr>
+<td><code>fix</code></td>
+<td>Bug fix</td>
+</tr>
+<tr>
+<td><code>refactor</code></td>
+<td>Code restructuring</td>
+</tr>
+<tr>
+<td><code>style</code></td>
+<td>Formatting only</td>
+</tr>
+<tr>
+<td><code>docs</code></td>
+<td>Documentation</td>
+</tr>
+<tr>
+<td><code>test</code></td>
+<td>Test changes</td>
+</tr>
+<tr>
+<td><code>chore</code></td>
+<td>Build/deps/maintenance</td>
+</tr>
+<tr>
+<td><code>perf</code></td>
+<td>Performance</td>
+</tr>
+<tr>
+<td><code>security</code></td>
+<td>Security fix</td>
+</tr>
+</tbody>
+</table>
+<h3 id="scopes">Scopes</h3>
+<table>
+<thead>
+<tr>
+<th>Scope</th>
+<th>Repository</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>backend</code></td>
+<td>jarvis-server/backend</td>
+</tr>
+<tr>
+<td><code>frontend</code></td>
+<td>jarvis-server/frontend</td>
+</tr>
+<tr>
+<td><code>mobile</code></td>
+<td>jarvis-mobile</td>
+</tr>
+<tr>
+<td><code>infra</code></td>
+<td>jarvis-server/infra</td>
+</tr>
+<tr>
+<td><code>contracts</code></td>
+<td>jarvis-contracts</td>
+</tr>
+<tr>
+<td><code>ci</code></td>
+<td>Any (GitHub Actions)</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="pull-request-template">Pull Request Template</h2>
+<div class="highlight"><pre><span></span><code><span class="gu">## Description</span>
+&lt;!-- What and why --&gt;
+
+<span class="gu">## Type</span>
+<span class="k">- [ ]</span> feat  - New feature
+<span class="k">- [ ]</span> fix   - Bug fix
+<span class="k">- [ ]</span> refactor - Code restructuring
+<span class="k">- [ ]</span> docs  - Documentation
+<span class="k">- [ ]</span> test  - Tests only
+<span class="k">- [ ]</span> chore - Maintenance
+
+<span class="gu">## Testing</span>
+<span class="k">- [ ]</span> Unit tests added/updated
+<span class="k">- [ ]</span> Integration tests added/updated
+<span class="k">- [ ]</span> Widget/Component tests added/updated
+<span class="k">- [ ]</span> E2E tests added/updated
+<span class="k">- [ ]</span> Contract tests updated (Pact)
+<span class="k">- [ ]</span> Manual testing performed
+
+<span class="gu">## Quality Gates</span>
+<span class="k">- [ ]</span> All CI checks pass
+<span class="k">- [ ]</span> SonarQube Quality Gate passes
+<span class="k">- [ ]</span> Coverage thresholds met
+<span class="k">- [ ]</span> No new security vulnerabilities
+
+<span class="gu">## Breaking Changes</span>
+&lt;!-- Any API/contract changes? --&gt;
+
+<span class="gu">## Checklist</span>
+<span class="k">- [ ]</span> Conventional commits used
+<span class="k">- [ ]</span> Work-unit commits (1 logical change per commit)
+<span class="k">- [ ]</span> Tests pass locally
+<span class="k">- [ ]</span> Documentation updated
+<span class="k">- [ ]</span> CHANGELOG updated (if user-facing)
+</code></pre></div>
+<hr />
+<h2 id="code-review-guidelines">Code Review Guidelines</h2>
+<h3 id="reviewer-responsibilities">Reviewer Responsibilities</h3>
+<ol>
+<li><strong>Architecture</strong>: Does it follow Clean Architecture / Clean Architecture?</li>
+<li><strong>Tests</strong>: Are tests meaningful? Do they test behavior, not implementation?</li>
+<li><strong>Security</strong>: No secrets, proper auth, input validation, certificate pinning</li>
+<li><strong>Performance</strong>: No N+1 queries, efficient algorithms, proper caching</li>
+<li><strong>Maintainability</strong>: Clear naming, small functions, SOLID principles</li>
+<li><strong>Contracts</strong>: OpenAPI spec updated? Pact tests pass?</li>
+</ol>
+<h3 id="review-checklist">Review Checklist</h3>
+<div class="highlight"><pre><span></span><code><span class="gu">## Code Review</span>
+<span class="k">- [ ]</span> Logic correct and complete
+<span class="k">- [ ]</span> Error handling comprehensive
+<span class="k">- [ ]</span> No hardcoded secrets/credentials
+<span class="k">- [ ]</span> Input validation on all endpoints
+<span class="k">- [ ]</span> Proper logging (structured, no PII)
+<span class="k">- [ ]</span> Database migrations backward-compatible
+<span class="k">- [ ]</span> API changes reflected in OpenAPI spec
+<span class="k">- [ ]</span> Pact consumer/provider tests updated
+<span class="k">- [ ]</span> Mobile certificate pinning considered
+</code></pre></div>
+<h3 id="approval-requirements">Approval Requirements</h3>
+<table>
+<thead>
+<tr>
+<th>Repo</th>
+<th>Minimum Approvals</th>
+<th>Required Reviewers</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>jarvis-contracts</code></td>
+<td>2</td>
+<td>1 backend + 1 frontend/mobile</td>
+</tr>
+<tr>
+<td><code>jarvis-server/backend</code></td>
+<td>2</td>
+<td>1 backend lead</td>
+</tr>
+<tr>
+<td><code>jarvis-server/frontend</code></td>
+<td>2</td>
+<td>1 frontend lead</td>
+</tr>
+<tr>
+<td><code>jarvis-mobile</code></td>
+<td>2</td>
+<td>1 mobile lead + 1 security review</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="development-workflow-per-feature">Development Workflow (Per Feature)</h2>
+<h3 id="1-start-feature">1. Start Feature</h3>
+<div class="highlight"><pre><span></span><code><span class="c1"># From develop</span>
+git<span class="w"> </span>checkout<span class="w"> </span>develop
+git<span class="w"> </span>pull<span class="w"> </span>origin<span class="w"> </span>develop
+git<span class="w"> </span>checkout<span class="w"> </span>-b<span class="w"> </span>feature/JARVIS-123-add-voice-session-replay
+</code></pre></div>
+<h3 id="2-develop-with-work-unit-commits">2. Develop with Work-Unit Commits</h3>
+<div class="highlight"><pre><span></span><code><span class="c1"># Each logical change = 1 commit</span>
+git<span class="w"> </span>add<span class="w"> </span>-p
+git<span class="w"> </span>commit<span class="w"> </span>-m<span class="w"> </span><span class="s2">"feat(backend): add voice session replay endpoint</span>
+
+<span class="s2">- Add GET /api/v1/voice/sessions/{id}/replay</span>
+<span class="s2">- Return WebSocket URL for replay stream</span>
+<span class="s2">- Unit tests: 92% coverage"</span>
+</code></pre></div>
+<h3 id="3-push-ci">3. Push + CI</h3>
+<div class="highlight"><pre><span></span><code>git<span class="w"> </span>push<span class="w"> </span>origin<span class="w"> </span>feature/JARVIS-123-add-voice-session-replay
+<span class="c1"># GitHub Actions runs: lint, unit, integration, contract, sonarqube</span>
+</code></pre></div>
+<h3 id="4-create-pr">4. Create PR</h3>
+<div class="highlight"><pre><span></span><code>gh<span class="w"> </span>pr<span class="w"> </span>create<span class="w"> </span>--base<span class="w"> </span>develop<span class="w"> </span>--title<span class="w"> </span><span class="s2">"feat(backend): voice session replay"</span>
+<span class="c1"># Fill PR template</span>
+</code></pre></div>
+<h3 id="5-review-iterate">5. Review + Iterate</h3>
+<div class="highlight"><pre><span></span><code><span class="c1"># Address review comments as new commits</span>
+git<span class="w"> </span>add<span class="w"> </span>-p
+git<span class="w"> </span>commit<span class="w"> </span>-m<span class="w"> </span><span class="s2">"fix(backend): handle missing session in replay</span>
+
+<span class="s2">- Return 404 with proper error envelope</span>
+<span class="s2">- Add integration test for missing session"</span>
+git<span class="w"> </span>push
+</code></pre></div>
+<h3 id="6-merge">6. Merge</h3>
+<div class="highlight"><pre><span></span><code><span class="c1"># After approvals + CI pass</span>
+gh<span class="w"> </span>pr<span class="w"> </span>merge<span class="w"> </span>--squash<span class="w"> </span>--delete-branch
+<span class="c1"># Or: gh pr merge --rebase --delete-branch</span>
+</code></pre></div>
+<h3 id="7-sync">7. Sync</h3>
+<div class="highlight"><pre><span></span><code>git<span class="w"> </span>checkout<span class="w"> </span>develop
+git<span class="w"> </span>pull<span class="w"> </span>origin<span class="w"> </span>develop
+git<span class="w"> </span>branch<span class="w"> </span>-d<span class="w"> </span>feature/JARVIS-123-add-voice-session-replay
+</code></pre></div>
+<hr />
+<h2 id="release-workflow">Release Workflow</h2>
+<h3 id="1-release-branch">1. Release Branch</h3>
+<div class="highlight"><pre><span></span><code>git<span class="w"> </span>checkout<span class="w"> </span>develop
+git<span class="w"> </span>pull<span class="w"> </span>origin<span class="w"> </span>develop
+git<span class="w"> </span>checkout<span class="w"> </span>-b<span class="w"> </span>release/v1.2.0
+<span class="c1"># Version bump in pyproject.toml, package.json, pubspec.yaml</span>
+git<span class="w"> </span>commit<span class="w"> </span>-m<span class="w"> </span><span class="s2">"chore(release): v1.2.0"</span>
+git<span class="w"> </span>push<span class="w"> </span>origin<span class="w"> </span>release/v1.2.0
+</code></pre></div>
+<h3 id="2-release-pr">2. Release PR</h3>
+<div class="highlight"><pre><span></span><code>gh<span class="w"> </span>pr<span class="w"> </span>create<span class="w"> </span>--base<span class="w"> </span>main<span class="w"> </span>--title<span class="w"> </span><span class="s2">"release: v1.2.0"</span>
+<span class="c1"># Full CI runs on main</span>
+</code></pre></div>
+<h3 id="3-tag-release">3. Tag + Release</h3>
+<div class="highlight"><pre><span></span><code><span class="c1"># After merge to main</span>
+git<span class="w"> </span>checkout<span class="w"> </span>main
+git<span class="w"> </span>pull<span class="w"> </span>origin<span class="w"> </span>main
+git<span class="w"> </span>tag<span class="w"> </span>-a<span class="w"> </span>v1.2.0<span class="w"> </span>-m<span class="w"> </span><span class="s2">"Release v1.2.0"</span>
+git<span class="w"> </span>push<span class="w"> </span>origin<span class="w"> </span>v1.2.0
+<span class="c1"># GitHub Actions: build artifacts, create release, deploy production</span>
+</code></pre></div>
+<h3 id="4-hotfix">4. Hotfix</h3>
+<div class="highlight"><pre><span></span><code>git<span class="w"> </span>checkout<span class="w"> </span>main
+git<span class="w"> </span>checkout<span class="w"> </span>-b<span class="w"> </span>hotfix/v1.2.1-fix-voice-crash
+<span class="c1"># Fix + test</span>
+git<span class="w"> </span>commit<span class="w"> </span>-m<span class="w"> </span><span class="s2">"fix(mobile): prevent crash on voice session timeout</span>
+
+<span class="s2">- Add null check for session_id</span>
+<span class="s2">- Widget test for timeout scenario"</span>
+gh<span class="w"> </span>pr<span class="w"> </span>create<span class="w"> </span>--base<span class="w"> </span>main<span class="w"> </span>--title<span class="w"> </span><span class="s2">"hotfix: voice session timeout crash"</span>
+<span class="c1"># Merge to main + backport to develop</span>
+</code></pre></div>
+<hr />
+<h2 id="responsibility-matrix-raci">Responsibility Matrix (RACI)</h2>
+<table>
+<thead>
+<tr>
+<th>Activity</th>
+<th>Backend Lead</th>
+<th>Frontend Lead</th>
+<th>Mobile Lead</th>
+<th>DevOps</th>
+<th>Security</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Architecture Decisions</strong></td>
+<td>R/A</td>
+<td>C</td>
+<td>C</td>
+<td>I</td>
+<td>C</td>
+</tr>
+<tr>
+<td><strong>API Design (OpenAPI)</strong></td>
+<td>R/A</td>
+<td>C</td>
+<td>C</td>
+<td>I</td>
+<td>C</td>
+</tr>
+<tr>
+<td><strong>Backend Implementation</strong></td>
+<td>R/A</td>
+<td>I</td>
+<td>I</td>
+<td>C</td>
+<td>C</td>
+</tr>
+<tr>
+<td><strong>Frontend Implementation</strong></td>
+<td>C</td>
+<td>R/A</td>
+<td>I</td>
+<td>I</td>
+<td>C</td>
+</tr>
+<tr>
+<td><strong>Mobile Implementation</strong></td>
+<td>C</td>
+<td>C</td>
+<td>R/A</td>
+<td>I</td>
+<td>C</td>
+</tr>
+<tr>
+<td><strong>Tailscale Integration</strong></td>
+<td>C</td>
+<td>I</td>
+<td>R/A</td>
+<td>R</td>
+<td>A</td>
+</tr>
+<tr>
+<td><strong>Database Migrations</strong></td>
+<td>R/A</td>
+<td>I</td>
+<td>I</td>
+<td>C</td>
+<td>C</td>
+</tr>
+<tr>
+<td><strong>CI/CD Pipelines</strong></td>
+<td>C</td>
+<td>C</td>
+<td>C</td>
+<td>R/A</td>
+<td>C</td>
+</tr>
+<tr>
+<td><strong>SonarQube Config</strong></td>
+<td>C</td>
+<td>C</td>
+<td>C</td>
+<td>R</td>
+<td>A</td>
+</tr>
+<tr>
+<td><strong>Security Review</strong></td>
+<td>C</td>
+<td>C</td>
+<td>C</td>
+<td>C</td>
+<td>R/A</td>
+</tr>
+<tr>
+<td><strong>Release Management</strong></td>
+<td>R</td>
+<td>R</td>
+<td>R</td>
+<td>A</td>
+<td>I</td>
+</tr>
+<tr>
+<td><strong>Incident Response</strong></td>
+<td>R</td>
+<td>R</td>
+<td>R</td>
+<td>A</td>
+<td>C</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Legend</strong>: R=Responsible, A=Accountable, C=Consulted, I=Informed</p>
+<hr />
+<h2 id="definition-of-done-per-work-unit">Definition of Done (Per Work Unit)</h2>
+<p>A work unit (commit/PR) is <strong>Done</strong> when:</p>
+<ul>
+<li>[ ] Code compiles + passes static analysis</li>
+<li>[ ] Unit tests pass + coverage threshold met</li>
+<li>[ ] Integration tests pass (if applicable)</li>
+<li>[ ] Widget/Component tests pass (if applicable)</li>
+<li>[ ] Contract tests pass (if API changed)</li>
+<li>[ ] E2E tests pass (if user-facing)</li>
+<li>[ ] SonarQube Quality Gate passes</li>
+<li>[ ] No new security vulnerabilities</li>
+<li>[ ] Documentation updated (README, OpenAPI, CHANGELOG)</li>
+<li>[ ] Peer review approved (minimum required)</li>
+<li>[ ] Merged to target branch</li>
+</ul>
+<hr />
+<h2 id="incident-response-production">Incident Response (Production)</h2>
+<h3 id="severity-levels">Severity Levels</h3>
+<table>
+<thead>
+<tr>
+<th>Level</th>
+<th>Response Time</th>
+<th>Escalation</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>SEV-1</strong> (Outage)</td>
+<td>15 min</td>
+<td>DevOps + Leads + Security</td>
+</tr>
+<tr>
+<td><strong>SEV-2</strong> (Degraded)</td>
+<td>30 min</td>
+<td>DevOps + Relevant Lead</td>
+</tr>
+<tr>
+<td><strong>SEV-3</strong> (Minor)</td>
+<td>2 hours</td>
+<td>Relevant Lead</td>
+</tr>
+<tr>
+<td><strong>SEV-4</strong> (Cosmetic)</td>
+<td>Next sprint</td>
+<td>Assignee</td>
+</tr>
+</tbody>
+</table>
+<h3 id="runbook-location">Runbook Location</h3>
+<div class="highlight"><pre><span></span><code>jarvis-server/infra/runbooks/
+├── sev1-database-down.md
+├── sev1-api-unavailable.md
+├── sev2-high-latency.md
+├── sev2-tailscale-disconnect.md
+└── sev3-*.md
+</code></pre></div>
+<hr />
+<h2 id="tooling-standards">Tooling Standards</h2>
+<table>
+<thead>
+<tr>
+<th>Category</th>
+<th>Tool</th>
+<th>Version</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Language (Backend)</strong></td>
+<td>Python</td>
+<td>3.12</td>
+</tr>
+<tr>
+<td><strong>Language (Frontend)</strong></td>
+<td>TypeScript</td>
+<td>5.4+</td>
+</tr>
+<tr>
+<td><strong>Language (Mobile)</strong></td>
+<td>Dart</td>
+<td>3.4+ / Flutter 3.24+</td>
+</tr>
+<tr>
+<td><strong>Package Manager (Backend)</strong></td>
+<td>pip + uv</td>
+<td>latest</td>
+</tr>
+<tr>
+<td><strong>Package Manager (Frontend)</strong></td>
+<td>npm</td>
+<td>10+</td>
+</tr>
+<tr>
+<td><strong>Package Manager (Mobile)</strong></td>
+<td>pub</td>
+<td>Flutter 3.24+</td>
+</tr>
+<tr>
+<td><strong>Lint (Backend)</strong></td>
+<td>ruff</td>
+<td>0.4+</td>
+</tr>
+<tr>
+<td><strong>Type Check (Backend)</strong></td>
+<td>mypy</td>
+<td>1.10+</td>
+</tr>
+<tr>
+<td><strong>Lint (Frontend)</strong></td>
+<td>ESLint</td>
+<td>8.56+</td>
+</tr>
+<tr>
+<td><strong>Type Check (Frontend)</strong></td>
+<td>tsc</td>
+<td>5.4+</td>
+</tr>
+<tr>
+<td><strong>Analyze (Mobile)</strong></td>
+<td>flutter analyze</td>
+<td>3.24+</td>
+</tr>
+<tr>
+<td><strong>Test (Backend)</strong></td>
+<td>pytest</td>
+<td>8.2+</td>
+</tr>
+<tr>
+<td><strong>Test (Frontend)</strong></td>
+<td>Vitest + Playwright</td>
+<td>latest</td>
+</tr>
+<tr>
+<td><strong>Test (Mobile)</strong></td>
+<td>flutter_test + patrol</td>
+<td>latest</td>
+</tr>
+<tr>
+<td><strong>Contract</strong></td>
+<td>Pact</td>
+<td>latest</td>
+</tr>
+<tr>
+<td><strong>SAST</strong></td>
+<td>bandit / npm audit / flutter pub deps</td>
+<td>latest</td>
+</tr>
+<tr>
+<td><strong>Container Scan</strong></td>
+<td>docker scan / Trivy</td>
+<td>latest</td>
+</tr>
+<tr>
+<td><strong>SonarQube</strong></td>
+<td>SonarCloud / Self-hosted</td>
+<td>9.9+</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="onboarding-checklist-new-team-member">Onboarding Checklist (New Team Member)</h2>
+<ul>
+<li>[ ] Access to all 3 repos + GitHub org</li>
+<li>[ ] Tailscale installed + authenticated</li>
+<li>[ ] Local dev environment: Python 3.12, Node 20, Flutter 3.24</li>
+<li>[ ] IDE configured: VS Code + extensions (Python, Dart, ESLint, etc.)</li>
+<li>[ ] Run <code>make dev</code> in each repo (starts local stack)</li>
+<li>[ ] Execute full test suite locally</li>
+<li>[ ] Create first PR (docs fix) → merge</li>
+<li>[ ] Pair program on first feature</li>
+<li>[ ] Complete security training (certificate pinning, Tailscale ACLs)</li>
+</ul>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": ["navigation.tabs", "navigation.sections", "search.suggest", "search.highlight", "content.code.copy"], "search": "../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../assets/javascripts/bundle.d7400e89.min.js"></script>
+      
+    
+  </body>
+</html>
