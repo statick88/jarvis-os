@@ -106,17 +106,26 @@ class KnowledgeGraphBuilder:
         reachable = {root_note_id}
         frontier = {root_note_id}
         for _ in range(max_depth):
-            next_frontier: set[str] = set()
-            for note_id in frontier:
-                note = notes_by_id.get(note_id)
-                if note is None:
-                    continue
-                for link in note.all_links:
-                    if link.target in notes_by_id and link.target not in reachable:
-                        reachable.add(link.target)
-                        next_frontier.add(link.target)
-            frontier = next_frontier
+            frontier = self._expand_frontier(frontier, notes_by_id, reachable)
         return {nid: notes_by_id[nid] for nid in reachable}
+
+    @staticmethod
+    def _expand_frontier(
+        frontier: set[str],
+        notes_by_id: dict[str, VaultNote],
+        reachable: set[str],
+    ) -> set[str]:
+        """One BFS hop: gather unvisited link targets of the frontier."""
+        next_frontier: set[str] = set()
+        for note_id in frontier:
+            note = notes_by_id.get(note_id)
+            if note is None:
+                continue
+            for link in note.all_links:
+                if link.target in notes_by_id and link.target not in reachable:
+                    reachable.add(link.target)
+                    next_frontier.add(link.target)
+        return next_frontier
 
     @staticmethod
     def _build_nodes(

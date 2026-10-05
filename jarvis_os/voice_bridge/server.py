@@ -502,15 +502,7 @@ class _StreamConnection:
             return
         msg_kind = control.get("type", "")
         try:
-            if msg_kind == "session_open":
-                await self._handle_session_open(control)
-            elif msg_kind == "session_close":
-                await self._handle_session_close(control)
-            elif msg_kind == "tts_input":
-                await self._handle_tts_input(control)
-            elif msg_kind == "ping":
-                pong = {"type": "pong", "timestamp_ms": int(time.time() * 1000)}
-                await self._ws.send_text(json.dumps(pong))
+            await self._dispatch_control(msg_kind, control)
         except ValueError as exc:
             logger.warning("Invalid JSON control frame: %s", exc)
             if self.session_id:
@@ -519,6 +511,18 @@ class _StreamConnection:
                     await self._ws.send_json(err.model_dump())
                 except Exception:
                     pass
+
+    async def _dispatch_control(self, msg_kind: str, control: dict[str, Any]) -> None:
+        """Route a parsed control frame to its kind handler."""
+        if msg_kind == "session_open":
+            await self._handle_session_open(control)
+        elif msg_kind == "session_close":
+            await self._handle_session_close(control)
+        elif msg_kind == "tts_input":
+            await self._handle_tts_input(control)
+        elif msg_kind == "ping":
+            pong = {"type": "pong", "timestamp_ms": int(time.time() * 1000)}
+            await self._ws.send_text(json.dumps(pong))
 
     async def _handle_session_open(self, control: dict[str, Any]) -> None:
         """Register the session and acknowledge it to the client."""
