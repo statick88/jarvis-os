@@ -43,4 +43,4 @@ Reporte 2026-10-05 (SonarQube 9.9 local, gate default OK): 1 BLOCKER S3516 (`han
 | S-5 | S3776 `voice_bridge/server.py:371` (134→clase) | `jarvis_os/voice_bridge/server.py` + tests | done (`58bc2ce`, 158 passed) | high |
 | S-6 | S1192 duplicados (models ×3, voice models ×3, plan ×2, events, nightly, devsecops, os_control) | varios | done (`d69b598`) | medium |
 | S-7 | S1172 params sin uso (con call-site verificado cada uno) | varios | done (`2e646c9`, 602 passed) | medium |
-| S-8 | Rescan final + reporte delta | SonarQube local | pending | high |
+| S-8 | Rescan final + reporte delta | SonarQube local | done (0 BLOCKER, 0 OPEN CRITICAL/MAJOR — ver reporte) | high |
