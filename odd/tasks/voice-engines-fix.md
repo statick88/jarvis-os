@@ -41,6 +41,7 @@ Que `test_audio_streaming.sh --quick` pase STT latency y TTS TTFB con respuestas
 - **Deuda registrada**: STT streaming real pendiente (opciones: compilar ejemplo `stream` de whisper.cpp con SDL, o rework batch-a-archivo con solo transcripts finales)
 - TTS verificado: `test_audio_streaming.sh --quick` TTS 10/10 con audio real (avg 2486ms en VM Colima, target 500ms solo alcanzable en hardware rápido); STT sigue FAIL-HARD por whisper sin `--stream`/stdin; además el harness tenía `break` en vez de `continue` ante timeouts recv (corregido 3×) y voz hardcodeada inexistente (ahora usa `tts_voice` del ack)
 - Commits: rama `feat/voice-engines-fix` desde `d7ae4d1`
+- T-5/T-6 done: STT batch al finalize + loopback verificado — `test_audio_streaming.sh --quick` **12 passed, 0 failed, 1 skip (EXIT=0)**; loopback 3/3 con transcripts reales; TTS avg ~1050ms en VM
 
 ---
 
@@ -51,4 +52,6 @@ Que `test_audio_streaming.sh --quick` pase STT latency y TTS TTFB con respuestas
 | T-1 | Descargar voz Piper | curl HF `es_ES-pacifico` medium (.onnx + .onnx.json) → volumen `/models/piper/` vía `docker cp`; verificar síntesis en contenedor | pending | high | inline | 1 descarga mecánica + 1 verificación, sin research |
 | T-2 | Entrypoint idempotente | `download_piper_voice()` en `docker/entrypoint.voice.sh`: si falta, descargar; si existe, no-op; fail-soft | pending | high | inline | 1 file mecánico ya comprendido |
 | T-3 | Diagnosticar STT | whisper-cli directo en contenedor + logs WS; determinar si es lentitud VM o invocación rota | done | high | inline | diagnóstico read-only acotado |
-| T-4 | Re-correr audio quick | `test_audio_streaming.sh --quick`, registrar resultado honesto | done | high | inline | suite delegable pero con output acotado a tail |
+| T-4 | Re-correr audio quick | `test_audio_streaming.sh --quick`, registrar resultado honesto | done | high | inline | suite con output acotado |
+| T-5 | STT batch al finalize | Rework WhisperSTTPipeline sin spawn streaming; finalize escribe wav temporal, whisper-cli sobre archivo, retorna texto; session_close emite STTFinal directo | done | high | delegated direct | server.py + protocolo WS |
+| T-6 | Test loopback habla real | Rework seccion STT del audio script: habla TTS, frames, close, espera stt_final con texto | done | high | inline | script ya comprendido |
