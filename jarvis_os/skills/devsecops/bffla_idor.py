@@ -266,35 +266,11 @@ class BfflaIdorSkill(BaseSkill):
             return {"status": "error", "message": "Endpoint path is required"}
 
         findings: list[dict[str, Any]] = []
-
-        # Test 1: original method
-        finding = await self._run_bfla_probe(
-            endpoint, method, lower_privilege_role, "bfla"
-        )
-        if finding:
-            findings.append(finding)
-
-        # Test 2: method switching
+        await self._probe_original_method(endpoint, method, lower_privilege_role, findings)
         if method_switching:
-            for other in ("POST", "PUT", "DELETE", "PATCH"):
-                if other == method.upper():
-                    continue
-                f = await self._run_bfla_probe(
-                    endpoint, other, lower_privilege_role, "method_switching"
-                )
-                if f:
-                    findings.append(f)
-
-        # Test 3: path confusion (trailing-slash variants)
+            await self._probe_method_switching(endpoint, method, lower_privilege_role, findings)
         if path_confusion:
-            for variant in (endpoint.rstrip("/"), endpoint + "/"):
-                if variant == endpoint:
-                    continue
-                f = await self._run_bfla_probe(
-                    variant, method, lower_privilege_role, "path_confusion"
-                )
-                if f:
-                    findings.append(f)
+            await self._probe_path_confusion(endpoint, method, lower_privilege_role, findings)
 
         return {
             "status": "success",
@@ -302,6 +278,48 @@ class BfflaIdorSkill(BaseSkill):
             "endpoint": endpoint,
             "tested_role": lower_privilege_role,
         }
+
+    async def _probe_original_method(
+        self,
+        endpoint: str,
+        method: str,
+        role: str,
+        findings: list[dict[str, Any]],
+    ) -> None:
+        """Probe the endpoint with its original method."""
+        finding = await self._run_bfla_probe(endpoint, method, role, "bfla")
+        if finding:
+            findings.append(finding)
+
+    async def _probe_method_switching(
+        self,
+        endpoint: str,
+        method: str,
+        role: str,
+        findings: list[dict[str, Any]],
+    ) -> None:
+        """Probe the endpoint with switched HTTP methods."""
+        for other in ("POST", "PUT", "DELETE", "PATCH"):
+            if other == method.upper():
+                continue
+            finding = await self._run_bfla_probe(endpoint, other, role, "method_switching")
+            if finding:
+                findings.append(finding)
+
+    async def _probe_path_confusion(
+        self,
+        endpoint: str,
+        method: str,
+        role: str,
+        findings: list[dict[str, Any]],
+    ) -> None:
+        """Probe trailing-slash path variants of the endpoint."""
+        for variant in (endpoint.rstrip("/"), endpoint + "/"):
+            if variant == endpoint:
+                continue
+            finding = await self._run_bfla_probe(variant, method, role, "path_confusion")
+            if finding:
+                findings.append(finding)
 
     @staticmethod
     def _base_url() -> str:

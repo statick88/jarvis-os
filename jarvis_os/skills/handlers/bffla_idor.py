@@ -66,23 +66,39 @@ def _run_skill_action(
 
     data = normalized["data"]
     if action in _PERSIST_ACTIONS:
-        persisted = 0
-        for finding in data.get("findings") or []:
-            if store.add_finding(finding):
-                persisted += 1
-        data["persisted_count"] = persisted
+        data["persisted_count"] = _persist_findings(data, store)
 
     if action == "get_confirmed":
-        ids = set(data.get("confirmed_ids") or []) | store.confirmed_ids
-        data["confirmed_ids"] = sorted(ids)
-    elif action == "mark_confirmed":
-        finding_id = input_data.get("finding_id") or parameters.get("finding_id")
-        if isinstance(finding_id, str) and finding_id:
-            store.mark_confirmed(finding_id)
         data["confirmed_ids"] = sorted(
             set(data.get("confirmed_ids") or []) | store.confirmed_ids
         )
-    return normalized
+    elif action == "mark_confirmed":
+        _mark_confirmed(input_data, parameters, data, store)
+    return {"success": True, "data": data}
+
+
+def _persist_findings(data: dict[str, Any], store: FindingsStore) -> int:
+    """Persist new findings, returning how many were added."""
+    persisted = 0
+    for finding in data.get("findings") or []:
+        if store.add_finding(finding):
+            persisted += 1
+    return persisted
+
+
+def _mark_confirmed(
+    input_data: dict[str, Any],
+    parameters: dict[str, Any],
+    data: dict[str, Any],
+    store: FindingsStore,
+) -> None:
+    """Mark a finding confirmed and merge confirmed ids in place."""
+    finding_id = input_data.get("finding_id") or parameters.get("finding_id")
+    if isinstance(finding_id, str) and finding_id:
+        store.mark_confirmed(finding_id)
+    data["confirmed_ids"] = sorted(
+        set(data.get("confirmed_ids") or []) | store.confirmed_ids
+    )
 
 
 async def _execute(
