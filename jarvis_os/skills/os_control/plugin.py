@@ -86,38 +86,48 @@ class OSControlSkill(BaseSkill):
         result: dict[str, Any] = {"timestamp": datetime.now(UTC).isoformat(), "metrics": {}}
 
         if "cpu" in requested:
-            if _PSUTIL_AVAILABLE:
-                result["metrics"]["cpu"] = {
-                    "percent": await asyncio.to_thread(psutil.cpu_percent, interval=0),  # type: ignore[possibly-unbound]
-                    "count": psutil.cpu_count(),  # type: ignore[possibly-unbound]
-                    "freq_mhz": psutil.cpu_freq().current if psutil.cpu_freq() else None,  # type: ignore[possibly-unbound]
-                }
-            else:
-                result["metrics"]["cpu"] = {"error": "psutil not available"}
-
+            result["metrics"]["cpu"] = await self._cpu_metrics()
         if "ram" in requested:
-            if _PSUTIL_AVAILABLE:
-                mem = psutil.virtual_memory()  # type: ignore[possibly-unbound]
-                result["metrics"]["ram"] = {
-                    "total_gb": round(mem.total / (1024 ** 3), 2),
-                    "used_gb": round(mem.used / (1024 ** 3), 2),
-                    "percent": mem.percent,
-                }
-            else:
-                result["metrics"]["ram"] = {"error": "psutil not available"}
-
+            result["metrics"]["ram"] = self._ram_metrics()
         if "disk" in requested:
-            if _PSUTIL_AVAILABLE:
-                disk = psutil.disk_usage("/")  # type: ignore[possibly-unbound]
-                result["metrics"]["disk"] = {
-                    "total_gb": round(disk.total / (1024 ** 3), 2),
-                    "used_gb": round(disk.used / (1024 ** 3), 2),
-                    "percent": disk.percent,
-                }
-            else:
-                result["metrics"]["disk"] = {"error": "psutil not available"}
+            result["metrics"]["disk"] = self._disk_metrics()
 
         return {"status": "success", "result": result}
+
+    @staticmethod
+    async def _cpu_metrics() -> dict[str, Any]:
+        """Collect CPU metrics (or an error when psutil is missing)."""
+        if not _PSUTIL_AVAILABLE:
+            return {"error": "psutil not available"}
+        return {
+            "percent": await asyncio.to_thread(psutil.cpu_percent, interval=0),  # type: ignore[possibly-unbound]
+            "count": psutil.cpu_count(),  # type: ignore[possibly-unbound]
+            "freq_mhz": psutil.cpu_freq().current if psutil.cpu_freq() else None,  # type: ignore[possibly-unbound]
+        }
+
+    @staticmethod
+    def _ram_metrics() -> dict[str, Any]:
+        """Collect RAM metrics (or an error when psutil is missing)."""
+        if not _PSUTIL_AVAILABLE:
+            return {"error": "psutil not available"}
+        mem = psutil.virtual_memory()  # type: ignore[possibly-unbound]
+        return {
+            "total_gb": round(mem.total / (1024 ** 3), 2),
+            "used_gb": round(mem.used / (1024 ** 3), 2),
+            "percent": mem.percent,
+        }
+
+    @staticmethod
+    def _disk_metrics() -> dict[str, Any]:
+        """Collect disk metrics (or an error when psutil is missing)."""
+        if not _PSUTIL_AVAILABLE:
+            return {"error": "psutil not available"}
+        disk = psutil.disk_usage("/")  # type: ignore[possibly-unbound]
+        return {
+            "total_gb": round(disk.total / (1024 ** 3), 2),
+            "used_gb": round(disk.used / (1024 ** 3), 2),
+            "percent": disk.percent,
+        }
 
     async def _execute_system_command(self, params: dict[str, Any], context: dict[str, Any]) -> dict[str, Any]:
         command = params.get("command", "")

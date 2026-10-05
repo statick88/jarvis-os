@@ -169,7 +169,16 @@ class OpenCodeClient:
         self._closing = True
         self._connected = False
 
-        # Cancel background tasks
+        await self._cancel_background_tasks()
+        await self._close_websocket()
+        await self._close_session()
+        self._fail_pending_futures()
+
+        self._closing = False
+        logger.info("Disconnected from OpenCode (client=%s)", self._client_id)
+
+    async def _cancel_background_tasks(self) -> None:
+        """Cancel heartbeat/receive tasks, awaiting their termination."""
         for task in (self._heartbeat_task, self._receive_task):
             if task and not task.done():
                 task.cancel()
@@ -178,26 +187,26 @@ class OpenCodeClient:
                 except asyncio.CancelledError:
                     pass
 
-        # Close WebSocket
+    async def _close_websocket(self) -> None:
+        """Close the WebSocket when open."""
         if self._ws and not self._ws.closed:
             await self._ws.close()
         self._ws = None
 
-        # Close HTTP session
+    async def _close_session(self) -> None:
+        """Close the HTTP session when open."""
         if self._session and not self._session.closed:
             await self._session.close()
         self._session = None
 
-        # Fail all pending futures
+    def _fail_pending_futures(self) -> None:
+        """Fail all pending futures and clear the registry."""
         for future in self._pending.values():
             if not future.done():
                 future.set_exception(
                     ConnectionError_("Connection closed")
                 )
         self._pending.clear()
-
-        self._closing = False
-        logger.info("Disconnected from OpenCode (client=%s)", self._client_id)
 
     # ------------------------------------------------------------------
     # Sending

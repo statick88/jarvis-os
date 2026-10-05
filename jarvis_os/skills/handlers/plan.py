@@ -72,58 +72,72 @@ def _read_plan(vault_path: Path, date_str: str) -> dict[str, Any]:
 
 
 def _parse_plan(text: str) -> dict[str, Any]:
-    focus = ""
-    tasks = []
-    blockers = []
-    in_tasks = False
-    in_blockers = False
-    task_re = re.compile(r"- \[([ x])\] \*\*(tsk-\d+)\*\* (.+?)(?: — \*([^*]+)\*)?$")
-    blocker_re = re.compile(r"- \*\*(blk-\d+)\*\* ⏳ (.+?) — \*([^*]+)\*$")
-
+    parser = _PlanParser()
     for line in text.splitlines():
+        parser.feed(line)
+    return parser.result()
+
+
+class _PlanParser:
+    """Line-by-line state machine for the daily plan markdown."""
+
+    def __init__(self) -> None:
+        self.focus = ""
+        self.tasks: list[dict[str, Any]] = []
+        self.blockers: list[dict[str, Any]] = []
+        self.section: str | None = None
+
+    def feed(self, line: str) -> None:
         stripped = line.strip()
-        if stripped.startswith("## 🎯 Foco Principal"):
-            in_tasks = False
-            in_blockers = False
-            continue
-        if stripped.startswith("## ✅ Tareas"):
-            in_tasks = True
-            in_blockers = False
-            continue
-        if stripped.startswith("## 🚫 Bloqueos"):
-            in_tasks = False
-            in_blockers = True
-            continue
-        if stripped.startswith("## "):
-            in_tasks = False
-            in_blockers = False
-            continue
+        section = _section_of(stripped)
+        if section is not None:
+            self.section = section
+            return
+        if self.section == "tasks":
+            self._feed_task(stripped)
+        elif self.section == "blockers":
+            self._feed_blocker(stripped)
+        elif stripped.startswith("- ") and "Foco Principal" not in stripped and not self.focus:
+            self.focus = stripped.lstrip("- ").strip()
 
-        if in_tasks:
-            m = task_re.match(stripped)
-            if m:
-                tasks.append({
-                    "id": m.group(2),
-                    "text": m.group(3).strip(),
-                    "priority": _priority_from_emoji(stripped),
-                    "completed": m.group(1) == "x",
-                    "created_at": (m.group(4) or "").strip(),
-                    "completed_at": None,
-                })
-            elif stripped.startswith("- [x]"):
-                tasks.append({"id": _extract_id(stripped) or f"tsk-{len(tasks)+1:03d}", "text": stripped, "completed": True})
-        elif in_blockers:
-            m = blocker_re.match(stripped)
-            if m:
-                blockers.append({
-                    "id": m.group(1),
-                    "text": m.group(2).strip(),
-                    "created_at": m.group(3).strip(),
-                })
-        elif stripped.startswith("- ") and "Foco Principal" not in stripped and not focus:
-            focus = stripped.lstrip("- ").strip()
+    def _feed_task(self, stripped: str) -> None:
+        task_re = re.compile(r"- \[([ x])\] \*\*(tsk-\d+)\*\* (.+?)(?: — \*([^*]+)\*)?$")
+        m = task_re.match(stripped)
+        if m:
+            self.tasks.append({
+                "id": m.group(2),
+                "text": m.group(3).strip(),
+                "priority": _priority_from_emoji(stripped),
+                "completed": m.group(1) == "x",
+                "created_at": (m.group(4) or "").strip(),
+                "completed_at": None,
+            })
+        elif stripped.startswith("- [x]"):
+            self.tasks.append({"id": _extract_id(stripped) or f"tsk-{len(self.tasks)+1:03d}", "text": stripped, "completed": True})
 
-    return {"focus": focus, "tasks": tasks, "blockers": blockers}
+    def _feed_blocker(self, stripped: str) -> None:
+        blocker_re = re.compile(r"- \*\*(blk-\d+)\*\* ⏳ (.+?) — \*([^*]+)\*$")
+        m = blocker_re.match(stripped)
+        if m:
+            self.blockers.append({
+                "id": m.group(1),
+                "text": m.group(2).strip(),
+                "created_at": m.group(3).strip(),
+            })
+
+    def result(self) -> dict[str, Any]:
+        return {"focus": self.focus, "tasks": self.tasks, "blockers": self.blockers}
+
+
+def _section_of(stripped: str) -> str | None:
+    """Map a markdown header line to a plan section name (if any)."""
+    if not stripped.startswith("## "):
+        return None
+    if stripped.startswith("## ✅ Tareas"):
+        return "tasks"
+    if stripped.startswith("## 🚫 Bloqueos"):
+        return "blockers"
+    return "focus"
 
 
 def _priority_from_emoji(text: str) -> str:

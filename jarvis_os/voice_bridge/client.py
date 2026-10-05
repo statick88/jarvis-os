@@ -443,59 +443,63 @@ class JarvisVoiceBridgeWS:
         try:
             async for message in self._ws:  # type: ignore[union-attr]
                 if isinstance(message, bytes):
-                    # Binary audio frame — dispatch as TTSChunkEvent
-                    event = TTSChunkEvent(
-                        audio_data=message,
-                        session_id=self._session_id,
-                        format="pcm",
-                        sample_rate=22050,
-                        is_final=False,
-                        duration_ms=100,
-                    )
-                    self._dispatch("audio_chunk", event)
+                    self._dispatch_audio_frame(message)
                 else:
-                    # JSON control frame
-                    try:
-                        data = json.loads(message)
-                        msg_type = data.get("type", "")
-                        if msg_type == "stt_partial":
-                            event = STTPartialEvent(
-                                text=data.get("text", ""),
-                                confidence=data.get("confidence", 0.0),
-                                session_id=data.get("session_id", ""),
-                            )
-                            self._dispatch("partial", event)
-                        elif msg_type == "stt_final":
-                            event = STTFinalEvent(
-                                text=data.get("text", ""),
-                                confidence=data.get("confidence", 0.0),
-                                session_id=data.get("session_id", ""),
-                                duration_ms=data.get("duration_ms", 0),
-                            )
-                            self._dispatch("final", event)
-                        elif msg_type == "tts_chunk":
-                            event = TTSChunkEvent(
-                                audio_data=b"",
-                                session_id=data.get("session_id", ""),
-                                format=data.get("format", "pcm"),
-                                sample_rate=data.get("sample_rate", 22050),
-                                is_final=data.get("is_final", False),
-                                duration_ms=data.get("duration_ms", 0),
-                            )
-                            self._dispatch("audio_chunk", event)
-                        elif msg_type == "error":
-                            logger.error("WS error frame: %s", data)
-                        elif msg_type == "session_ack":
-                            # Dispatch session_ack as a special event for orchestrator clients
-                            self._dispatch("session_ack", data)
-                    except json.JSONDecodeError:
-                        logger.debug("Non-JSON message received: %s", message[:100])
+                    self._dispatch_control_frame(message)
         except websockets.ConnectionClosed:
             logger.info("WebSocket connection closed")
             self._set_state(ConnectionState.DISCONNECTED)
         except Exception as exc:
             logger.exception("WebSocket listen error: %s", exc)
             self._set_state(ConnectionState.ERROR)
+
+    def _dispatch_audio_frame(self, message: bytes) -> None:
+        """Dispatch a binary audio frame as a TTSChunkEvent."""
+        event = TTSChunkEvent(
+            audio_data=message,
+            session_id=self._session_id,
+            format="pcm",
+            sample_rate=22050,
+            is_final=False,
+            duration_ms=100,
+        )
+        self._dispatch("audio_chunk", event)
+
+    def _dispatch_control_frame(self, message: str) -> None:
+        """Parse and dispatch a JSON control frame."""
+        try:
+            data = json.loads(message)
+        except json.JSONDecodeError:
+            logger.debug("Non-JSON message received: %s", message[:100])
+            return
+        msg_type = data.get("type", "")
+        if msg_type == "stt_partial":
+            self._dispatch("partial", STTPartialEvent(
+                text=data.get("text", ""),
+                confidence=data.get("confidence", 0.0),
+                session_id=data.get("session_id", ""),
+            ))
+        elif msg_type == "stt_final":
+            self._dispatch("final", STTFinalEvent(
+                text=data.get("text", ""),
+                confidence=data.get("confidence", 0.0),
+                session_id=data.get("session_id", ""),
+                duration_ms=data.get("duration_ms", 0),
+            ))
+        elif msg_type == "tts_chunk":
+            self._dispatch("audio_chunk", TTSChunkEvent(
+                audio_data=b"",
+                session_id=data.get("session_id", ""),
+                format=data.get("format", "pcm"),
+                sample_rate=data.get("sample_rate", 22050),
+                is_final=data.get("is_final", False),
+                duration_ms=data.get("duration_ms", 0),
+            ))
+        elif msg_type == "error":
+            logger.error("WS error frame: %s", data)
+        elif msg_type == "session_ack":
+            # Dispatch session_ack as a special event for orchestrator clients
+            self._dispatch("session_ack", data)
 
     async def close(self, reason: str = "client_disconnect") -> None:
         """Close the WebSocket session cleanly."""

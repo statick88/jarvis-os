@@ -58,62 +58,18 @@ def _fetch(input_data: dict[str, Any], vault_path: Path) -> dict[str, Any]:
     # to the documented range so a bad value cannot disable the window.
     hours_back = max(1, min(int(input_data.get("hours_back", 24)), 168))
     cutoff = datetime.now(UTC) - timedelta(hours=hours_back)
-    fetched = 0
-    relevant = 0
-    skipped_stale = 0
-    items_undated = 0
-    feeds_processed = []
-    raw_items = []
 
+    stats = _FeedStats()
+    raw_items = []
+    feeds_processed = []
     for feed in feeds:
         url = feed if isinstance(feed, str) else feed.get("url", "")
         title = feed if isinstance(feed, str) else feed.get("name", url)
-        items_fetched = 0
-        items_relevant = 0
-        # Bound before the try: Python unbinds the `except ... as exc` name when
-        # the block ends, so referencing `exc` afterwards raises UnboundLocalError
-        # on the success path whenever a feed yields zero items.
-        feed_error: str | None = None
-        try:
-            import urllib.request
-            import xml.etree.ElementTree as ET
-
-            req = urllib.request.Request(url, headers={"User-Agent": "jarvis-os/1.0"})
-            with urllib.request.urlopen(req, timeout=10) as resp:
-                data = resp.read().decode("utf-8", errors="replace")
-            root = ET.fromstring(data)
-            items = _parse_feed_items(root)
-            # Age-filter before applying max_items_per_feed. Slicing first would
-            # let stale items consume the budget and push fresh ones out, so
-            # max_items would silently mean "first N regardless of age".
-            fresh = [item for item in items if _is_within_window(item, cutoff)]
-            skipped_stale += len(items) - len(fresh)
-            items_undated += sum(
-                1 for item in fresh if _parse_published(str(item.get("published", ""))) is None
-            )
-            for item in fresh[:max_items]:
-                score = _relevance(item, keywords)
-                if score >= min_score:
-                    items_relevant += 1
-                    raw_items.append({**item, "score": score, "feed_title": title})
-            items_fetched = len(fresh)
-            fetched += items_fetched
-            relevant += items_relevant
-        except Exception as exc:
-            feed_error = str(exc)
-            logger.warning("Failed to fetch feed %s: %s", url, exc)
-
-        feeds_processed.append(
-            {
-                "url": url,
-                "title": title,
-                "items_fetched": items_fetched,
-                "items_relevant": items_relevant,
-                # A feed can be valid and still yield nothing, so distinguish
-                # "the fetch failed" from "the feed was empty".
-                "error": None if items_fetched else (feed_error or "no items returned"),
-            }
+        report, items = _fetch_single_feed(
+            url, title, keywords, min_score, max_items, cutoff, stats
         )
+        feeds_processed.append(report)
+        raw_items.extend(items)
 
     sqs_events: list[dict[str, Any]] = []
     if enqueue and raw_items:
@@ -126,29 +82,113 @@ def _fetch(input_data: dict[str, Any], vault_path: Path) -> dict[str, Any]:
         )
 
     if raw_items:
-        today = datetime.now(UTC).strftime("%Y-%m-%d")
-        out_path = vault_path / "raw" / f"tendencias_{today}.json"
-        out_path.parent.mkdir(parents=True, exist_ok=True)
-        import json
-        lines = "\n".join(json.dumps(item, default=str) for item in raw_items)
-        out_path.write_text(lines, encoding="utf-8")
+        _write_raw_items(vault_path, raw_items)
 
     return {
         "success": True,
         "data": {
-            "fetched_count": fetched,
+            "fetched_count": stats.fetched,
             "analyzed_count": 0,
-            "enqueued_count": relevant if enqueue else 0,
+            "enqueued_count": stats.relevant if enqueue else 0,
             "feeds_processed": feeds_processed,
             "top_topics": _top_topics(raw_items),
             # Surfaced so an ignored window is visible in the receipt instead of
             # being invisible: a caller asking for 24h can see what came back.
             "hours_back": hours_back,
-            "skipped_stale_count": skipped_stale,
-            "undated_count": items_undated,
+            "skipped_stale_count": stats.skipped_stale,
+            "undated_count": stats.undated,
         },
         "sqs_events": sqs_events,
     }
+
+
+class _FeedStats:
+    """Counters shared across single-feed fetches."""
+
+    def __init__(self) -> None:
+        self.fetched = 0
+        self.relevant = 0
+        self.skipped_stale = 0
+        self.undated = 0
+
+
+def _fetch_single_feed(
+    url: str,
+    title: str,
+    keywords: list[str],
+    min_score: float,
+    max_items: int,
+    cutoff: datetime,
+    stats: _FeedStats,
+) -> tuple[dict[str, Any], list[dict[str, Any]]]:
+    """Fetch one feed, returning its report and relevant items."""
+    items_fetched = 0
+    items_relevant = 0
+    items: list[dict[str, Any]] = []
+    # Bound before the try: Python unbinds the `except ... as exc` name when
+    # the block ends, so referencing `exc` afterwards raises UnboundLocalError
+    # on the success path whenever a feed yields zero items.
+    feed_error: str | None = None
+    try:
+        fresh = _download_fresh_items(url, cutoff, stats)
+        for item in fresh[:max_items]:
+            score = _relevance(item, keywords)
+            if score >= min_score:
+                items_relevant += 1
+                items.append({**item, "score": score, "feed_title": title})
+        items_fetched = len(fresh)
+        stats.fetched += items_fetched
+        stats.relevant += items_relevant
+    except Exception as exc:
+        feed_error = str(exc)
+        logger.warning("Failed to fetch feed %s: %s", url, exc)
+
+    return (
+        {
+            "url": url,
+            "title": title,
+            "items_fetched": items_fetched,
+            "items_relevant": items_relevant,
+            # A feed can be valid and still yield nothing, so distinguish
+            # "the fetch failed" from "the feed was empty".
+            "error": None if items_fetched else (feed_error or "no items returned"),
+        },
+        items,
+    )
+
+
+def _download_fresh_items(
+    url: str, cutoff: datetime, stats: _FeedStats
+) -> list[dict[str, Any]]:
+    """Download a feed and keep only items inside the age window."""
+    import urllib.request
+    import xml.etree.ElementTree as ET
+
+    req = urllib.request.Request(url, headers={"User-Agent": "jarvis-os/1.0"})
+    with urllib.request.urlopen(req, timeout=10) as resp:
+        data = resp.read().decode("utf-8", errors="replace")
+    root = ET.fromstring(data)
+    items = _parse_feed_items(root)
+    # Age-filter before applying max_items_per_feed. Slicing first would
+    # let stale items consume the budget and push fresh ones out, so
+    # max_items would silently mean "first N regardless of age".
+    fresh = [item for item in items if _is_within_window(item, cutoff)]
+    stats.skipped_stale += len(items) - len(fresh)
+    stats.undated += sum(
+        1 for item in fresh if _parse_published(str(item.get("published", ""))) is None
+    )
+    return fresh
+
+
+def _write_raw_items(vault_path: Path, raw_items: list[dict[str, Any]]) -> None:
+    """Persist fetched items as JSON lines under vault raw dir."""
+    import json
+
+    today = datetime.now(UTC).strftime("%Y-%m-%d")
+    out_path = vault_path / "raw" / f"tendencias_{today}.json"
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    lines = "\n".join(json.dumps(item, default=str) for item in raw_items)
+    out_path.write_text(lines, encoding="utf-8")
 
 
 def _report(vault_path: Path) -> dict[str, Any]:

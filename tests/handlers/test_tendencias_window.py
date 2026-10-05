@@ -281,9 +281,10 @@ class TestHoursBackIsNotDeadCode:
         import inspect
 
         source = inspect.getsource(t._fetch)
+        helper_source = inspect.getsource(t._download_fresh_items)
 
         assert "cutoff" in source, "_fetch must build a cutoff from hours_back"
-        assert "_is_within_window" in source, (
-            "_fetch must apply the window to each item; reading hours_back and "
-            "ignoring it was the original bug"
+        assert "_is_within_window" in helper_source, (
+            "_fetch must apply the window to each item via its download helper; "
+            "reading hours_back and ignoring it was the original bug"
         )

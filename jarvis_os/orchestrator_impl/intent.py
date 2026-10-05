@@ -92,24 +92,13 @@ class IntentAnalyzer:
             best_intent = self._keywords[normalized]
             best_confidence = 1.0
         else:
-            # Word-overlap match: all words of the keyword must appear in text
-            for keyword, capability in self._keywords.items():
-                keyword_words = set(keyword.split())
-                if keyword_words.issubset(text_words):
-                    score = len(keyword_words) / max(len(text_words), 1)
-                    if score > best_confidence:
-                        best_confidence = score
-                        best_intent = capability
-                        entities["matched_keyword"] = keyword
+            best_intent, best_confidence, entities = self._overlap_match(
+                text_words, best_intent, best_confidence, entities
+            )
 
-        # Capability pattern (e.g. "skill.xxx" already in text)
-        cap_match = re.search(r"\b([a-z]+\.[a-z_]+)\b", normalized)
-        if cap_match:
-            candidate = cap_match.group(1)
-            if candidate in self._map:
-                best_intent = candidate
-                best_confidence = max(best_confidence, 0.9)
-                entities["capability_pattern"] = candidate
+        best_intent, best_confidence, entities = self._capability_pattern_match(
+            normalized, best_intent, best_confidence, entities
+        )
 
         # Clamp confidence to [0, 1]
         best_confidence = max(0.0, min(1.0, best_confidence))
@@ -128,3 +117,41 @@ class IntentAnalyzer:
         return IntentResult(
             intent=best_intent, confidence=best_confidence, entities=entities
         )
+
+    def _overlap_match(
+        self,
+        text_words: set[str],
+        best_intent: str,
+        best_confidence: float,
+        entities: dict[str, Any],
+    ) -> tuple[str, float, dict[str, Any]]:
+        """Word-overlap match: all words of the keyword must appear in text."""
+        for keyword, capability in self._keywords.items():
+            keyword_words = set(keyword.split())
+            if not keyword_words.issubset(text_words):
+                continue
+            score = len(keyword_words) / max(len(text_words), 1)
+            if score > best_confidence:
+                best_confidence = score
+                best_intent = capability
+                entities["matched_keyword"] = keyword
+        return best_intent, best_confidence, entities
+
+    def _capability_pattern_match(
+        self,
+        normalized: str,
+        best_intent: str,
+        best_confidence: float,
+        entities: dict[str, Any],
+    ) -> tuple[str, float, dict[str, Any]]:
+        """Capability pattern (e.g. "skill.xxx" already in text)."""
+        cap_match = re.search(r"\b([a-z]+\.[a-z_]+)\b", normalized)
+        if not cap_match:
+            return best_intent, best_confidence, entities
+        candidate = cap_match.group(1)
+        if candidate not in self._map:
+            return best_intent, best_confidence, entities
+        best_intent = candidate
+        best_confidence = max(best_confidence, 0.9)
+        entities["capability_pattern"] = candidate
+        return best_intent, best_confidence, entities

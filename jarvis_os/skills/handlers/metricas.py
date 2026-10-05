@@ -34,50 +34,68 @@ def run(input_data: dict[str, Any]) -> dict[str, Any]:
     vault_path = Path(input_data.get("context", {}).get("vault_path", "/app/vault"))
 
     try:
-        if action == "docker_stats":
-            data = _collect_docker_stats(include_containers)
-        elif action == "host_stats":
-            data = _collect_host_stats()
-        elif action == "collect":
-            data = _collect_continuous(interval_seconds, duration_seconds, include_containers)
-        elif action == "report":
-            docker = _collect_docker_stats(include_containers)
-            host = _collect_host_stats()
-            data = {"docker": docker, "host": host, "timestamp": _now_iso()}
-        else:
+        data = _collect(action, include_containers, interval_seconds, duration_seconds)
+        if data is None:
             return {"success": False, "error": f"Unknown action: {action}"}
 
         vault_changes: list[dict[str, Any]] = []
         if action in {"report", "collect"} and output_format == "markdown":
-            md = _format_markdown(data)
-            today = datetime.now(UTC).strftime("%Y-%m-%d")
-            out_path = vault_path / "wiki" / f"metricas_{today}.md"
-            try:
-                out_path.parent.mkdir(parents=True, exist_ok=True)
-                if out_path.exists():
-                    existing = out_path.read_text(encoding="utf-8")
-                    if "## Docker — Contenedores" not in existing:
-                        out_path.write_text(existing + "\n\n" + md, encoding="utf-8")
-                    else:
-                        out_path.write_text(md, encoding="utf-8")
-                else:
-                    fm = _frontmatter("metricas_" + today, ["metricas", "system", "docker", "host"], vault_path)
-                    out_path.write_text(fm + "\n\n" + md, encoding="utf-8")
-                vault_changes.append(
-                    {
-                        "path": str(out_path.relative_to(vault_path)),
-                        "operation": "CREATE",
-                        "content": md,
-                        "frontmatter": {"id": "metricas_" + today, "tags": ["metricas", "system", "docker", "host"]},
-                    }
-                )
-            except Exception as exc:
-                logger.warning("Vault write failed: %s", exc)
-
-        return {"success": True, "data": data, "vault_changes": vault_changes}
+            vault_changes = _write_report(vault_path, data)
     except Exception as exc:
         logger.exception("metricas skill failed")
         return {"success": False, "error": str(exc)}
+
+    result: dict[str, Any] = {"success": True, "data": data, "vault_changes": vault_changes}
+    return result
+
+
+def _collect(
+    action: str,
+    include_containers: list[str],
+    interval_seconds: int,
+    duration_seconds: int,
+) -> dict[str, Any] | None:
+    """Collect metrics for the requested action (None when unknown)."""
+    if action == "docker_stats":
+        return _collect_docker_stats(include_containers)
+    if action == "host_stats":
+        return _collect_host_stats()
+    if action == "collect":
+        return _collect_continuous(interval_seconds, duration_seconds, include_containers)
+    if action == "report":
+        docker = _collect_docker_stats(include_containers)
+        host = _collect_host_stats()
+        return {"docker": docker, "host": host, "timestamp": _now_iso()}
+    return None
+
+
+def _write_report(vault_path: Path, data: dict[str, Any]) -> list[dict[str, Any]]:
+    """Render markdown and merge it into today's metrics note."""
+    md = _format_markdown(data)
+    today = datetime.now(UTC).strftime("%Y-%m-%d")
+    out_path = vault_path / "wiki" / f"metricas_{today}.md"
+    try:
+        out_path.parent.mkdir(parents=True, exist_ok=True)
+        if out_path.exists():
+            existing = out_path.read_text(encoding="utf-8")
+            if "## Docker — Contenedores" not in existing:
+                out_path.write_text(existing + "\n\n" + md, encoding="utf-8")
+            else:
+                out_path.write_text(md, encoding="utf-8")
+        else:
+            fm = _frontmatter("metricas_" + today, ["metricas", "system", "docker", "host"], vault_path)
+            out_path.write_text(fm + "\n\n" + md, encoding="utf-8")
+        return [
+            {
+                "path": str(out_path.relative_to(vault_path)),
+                "operation": "CREATE",
+                "content": md,
+                "frontmatter": {"id": "metricas_" + today, "tags": ["metricas", "system", "docker", "host"]},
+            }
+        ]
+    except Exception as exc:
+        logger.warning("Vault write failed: %s", exc)
+        return []
 
 
 def _collect_docker_stats(include_containers: list[str]) -> dict[str, Any]:
