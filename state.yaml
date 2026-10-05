@@ -1,12 +1,16 @@
 # JARVIS-OS — State Snapshot
-# Updated: 2026-09-07 after archiving jarvis-runtime-hardening & jarvis-docker-e2e-fix
+# Updated: 2026-10-05 after archiving jarvis-e2e-integration
 
-active_change: jarvis-e2e-integration
-phase: FASE 11
+active_change: null
+phase: idle
 status: ready
 
-# Archived changes (9 total)
+# Archived changes (10 total)
 archived_changes:
+  - id: jarvis-e2e-integration
+    date: "2026-10-05"
+    verdict: closed_without_receipt
+    notes: "T-1..T-5 done; 119 pytest + 40/40 pipeline + audio loopback green; review lineage review-378cb5e8eabcab80 closed without receipt per user choice."
   - id: jarvis-audio-streaming
     date: "2026-08-11"
     verdict: pass
