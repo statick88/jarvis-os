@@ -1,7 +1,7 @@
 # jarvis-os
 
 [![GPL v3.0](https://img.shields.io/badge/License-GPL%20v3.0-blue.svg)](https://www.gnu.org/licenses/gpl-3.0.en.html)
-[![GitHub Pages](https://img.shields.io/badge/GitHub%20Pages-Enabled-green.svg)](https://<tu-usuario-github>.github.io/jarvis-os/)
+[![GitHub Pages](https://img.shields.io/badge/GitHub%20Pages-Enabled-green.svg)](https://statick88.github.io/jarvis-os/)
 
 **jarvis-os** es un sistema operativo personal orquestado por voz y Markdown, construido sobre Docker en Apple Silicon M5. Combina un núcleo de orquestación `gentle-ai`, un pipeline de voz `voice-pipeline` y persistencia en frío mediante `floci-localstack` (S3/SQS), todo gestionado por un vault Zettelkasten en `./vault/`.
 
@@ -29,7 +29,7 @@ El copyleft fuerte de la GPL v3.0 garantiza que todas las versiones modificadas 
 
 ```bash
 # Clonar el repositorio
-git clone https://github.com/<tu-usuario-github>/jarvis-os.git
+git clone https://github.com/statick88/jarvis-os.git
 cd jarvis-os
 
 # Configurar variables de entorno
@@ -45,7 +45,7 @@ docker compose -f docker/docker-compose.yml ps
 ## Documentación
 
 La documentación oficial está disponible en GitHub Pages:  
-**[https://<tu-usuario-github>.github.io/jarvis-os/](https://<tu-usuario-github>.github.io/jarvis-os/)**
+**[https://statick88.github.io/jarvis-os/](https://statick88.github.io/jarvis-os/)**
 
 ## Licencia
 

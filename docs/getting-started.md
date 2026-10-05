@@ -10,7 +10,7 @@
 ## Clonar el repositorio
 
 ```bash
-git clone https://github.com/<tu-usuario-github>/jarvis-os.git
+git clone https://github.com/statick88/jarvis-os.git
 cd jarvis-os
 ```
 
