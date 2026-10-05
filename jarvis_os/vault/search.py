@@ -13,6 +13,7 @@ from __future__ import annotations
 import logging
 import re
 from pathlib import Path
+from typing import Any
 
 from jarvis_os.vault.models import (
     MAX_SEARCH_RESULTS,
@@ -78,16 +79,8 @@ class VaultSearch:
 
         results: list[SearchResult] = []
         for entry in active_entries:
-            if tags and not set(tags) & set(entry.tags):
+            if not self._passes_filters(entry, tags, date_from, date_to):
                 continue
-            if date_from and entry.rel_path:
-                created = self._extract_date_from_path(entry.rel_path)
-                if created and created < date_from:
-                    continue
-            if date_to and entry.rel_path:
-                created = self._extract_date_from_path(entry.rel_path)
-                if created and created > date_to:
-                    continue
 
             note = await self._load_note(entry.rel_path)
             if note is None:
@@ -97,13 +90,12 @@ class VaultSearch:
             if score <= 0:
                 continue
 
-            snippet = self._snippet(note.content, terms)
             results.append(
                 SearchResult(
                     id=note.id,
                     title=note.title,
                     rel_path=entry.rel_path,
-                    snippet=snippet,
+                    snippet=self._snippet(note.content, terms),
                     score=score,
                     tags=note.tags,
                     matched_terms=terms,
@@ -120,6 +112,26 @@ class VaultSearch:
     # ------------------------------------------------------------------
     # Internal helpers
     # ------------------------------------------------------------------
+
+    def _passes_filters(
+        self,
+        entry: Any,
+        tags: list[str] | None,
+        date_from: str | None,
+        date_to: str | None,
+    ) -> bool:
+        """Check tag and date filters for an index entry."""
+        if tags and not set(tags) & set(entry.tags):
+            return False
+        if date_from and entry.rel_path:
+            created = self._extract_date_from_path(entry.rel_path)
+            if created and created < date_from:
+                return False
+        if date_to and entry.rel_path:
+            created = self._extract_date_from_path(entry.rel_path)
+            if created and created > date_to:
+                return False
+        return True
 
     async def _load_index(self) -> VaultIndex:
         import json
@@ -180,18 +192,7 @@ class VaultSearch:
         position so the output is deterministic.
         """
         lower = content.lower()
-        hits: list[int] = []
-        for term in terms:
-            needle = term.lower()
-            if not needle:
-                continue
-            pos = 0
-            while True:
-                idx = lower.find(needle, pos)
-                if idx == -1:
-                    break
-                hits.append(idx)
-                pos = idx + 1
+        hits = VaultSearch._find_term_hits(lower, terms)
 
         if not hits:
             return content[:window]
@@ -219,6 +220,23 @@ class VaultSearch:
         if end < len(content):
             snippet = snippet + "..."
         return snippet
+
+    @staticmethod
+    def _find_term_hits(lower: str, terms: list[str]) -> list[int]:
+        """Return every start position of every term in the lowered content."""
+        hits: list[int] = []
+        for term in terms:
+            needle = term.lower()
+            if not needle:
+                continue
+            pos = 0
+            while True:
+                idx = lower.find(needle, pos)
+                if idx == -1:
+                    break
+                hits.append(idx)
+                pos = idx + 1
+        return hits
 
     @staticmethod
     def _extract_date_from_path(rel_path: str) -> str | None:

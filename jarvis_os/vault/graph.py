@@ -18,6 +18,7 @@ import json
 import logging
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import Any
 
 from jarvis_os.vault.models import (
     GraphEdge,
@@ -72,16 +73,33 @@ class KnowledgeGraphBuilder:
         """
         index = await self._load_index()
         active_entries = [e for e in index.files.values() if not e.deleted]
+        notes_by_id = await self._load_notes(active_entries)
+        nodes = self._build_nodes(notes_by_id, include_orphans)
+        edges = self._build_edges(notes_by_id, nodes)
 
+        stats = self._compute_stats(nodes, edges)
+        return KnowledgeGraph(
+            nodes=nodes,
+            edges=edges,
+            stats=stats,
+            root_note_id=root_note_id,
+        )
+
+    async def _load_notes(self, active_entries: list[Any]) -> dict[str, VaultNote]:
+        """Load notes for active index entries keyed by note id."""
         notes_by_id: dict[str, VaultNote] = {}
         for entry in active_entries:
             note = await self._load_note(entry.rel_path)
             if note is not None:
                 notes_by_id[note.id] = note
+        return notes_by_id
 
+    @staticmethod
+    def _build_nodes(
+        notes_by_id: dict[str, VaultNote], include_orphans: bool
+    ) -> list[GraphNode]:
+        """Build graph nodes, optionally skipping orphans."""
         nodes: list[GraphNode] = []
-        edges: list[GraphEdge] = []
-
         for note in notes_by_id.values():
             is_orphan = not note.explicit_links and not note.implicit_links
             if not include_orphans and is_orphan:
@@ -94,8 +112,15 @@ class KnowledgeGraphBuilder:
                     is_orphan=is_orphan,
                 )
             )
+        return nodes
 
+    @staticmethod
+    def _build_edges(
+        notes_by_id: dict[str, VaultNote], nodes: list[GraphNode]
+    ) -> list[GraphEdge]:
+        """Build deduplicated edges between known node ids."""
         target_ids = {n.id for n in nodes}
+        edges: list[GraphEdge] = []
         seen_edges: set[tuple[str, str, LinkKind]] = set()
         for note in notes_by_id.values():
             if note.id not in target_ids:
@@ -114,14 +139,7 @@ class KnowledgeGraphBuilder:
                         kind=link.kind,
                     )
                 )
-
-        stats = self._compute_stats(nodes, edges)
-        return KnowledgeGraph(
-            nodes=nodes,
-            edges=edges,
-            stats=stats,
-            root_note_id=root_note_id,
-        )
+        return edges
 
     async def export(
         self,

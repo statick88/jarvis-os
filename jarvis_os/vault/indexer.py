@@ -77,54 +77,11 @@ class VaultIndexer:
         files_on_disk = self._discover_files()
         previous_files = {e.rel_path: e for e in index.files.values() if not e.deleted}
 
-        to_process: list[Path] = []
-        indexed_count = 0
-        updated_count = 0
-        errors: list[dict[str, Any]] = []
-
-        for rel_path in sorted(files_on_disk):
-            abs_path = self.vault_root / rel_path
-            try:
-                stat = abs_path.stat()
-            except OSError:
-                continue
-
-            mtime_ns = stat.st_mtime_ns
-            size_bytes = stat.st_size
-            sha256 = self._sha256(abs_path)
-
-            entry = previous_files.get(rel_path)
-            if not force_full and entry is not None:
-                if entry.sha256 == sha256 and entry.mtime_ns == mtime_ns:
-                    continue
-                updated_count += 1
-            else:
-                indexed_count += 1
-
-            to_process.append(abs_path)
-
-        for abs_path in to_process:
-            rel_path = str(abs_path.relative_to(self.vault_root))
-            try:
-                note = await self._parse_note(abs_path)
-                entry = IndexEntry(
-                    id=note.id,
-                    title=note.title,
-                    rel_path=rel_path,
-                    tags=note.tags,
-                    links=[link.target for link in note.explicit_links],
-                    sha256=self._sha256(abs_path),
-                    mtime_ns=abs_path.stat().st_mtime_ns,
-                    size_bytes=abs_path.stat().st_size,
-                )
-                index.files[note.id] = entry
-            except (VaultParseError, Exception) as exc:
-                errors.append({"path": rel_path, "error": str(exc)})
-                logger.warning("Failed to index %s: %s", rel_path, exc)
-
-        for rel_path, entry in list(previous_files.items()):
-            if rel_path not in files_on_disk:
-                index.files[entry.id].deleted = True
+        to_process, indexed_count, updated_count = self._select_files_to_process(
+            files_on_disk, previous_files, force_full
+        )
+        errors = await self._index_files(to_process, index)
+        self._mark_deleted(previous_files, files_on_disk, index)
 
         self._create_output_backlinks(index)
 
@@ -140,6 +97,68 @@ class VaultIndexer:
                 "total_active": sum(1 for e in index.files.values() if not e.deleted),
             }
         )
+
+    def _select_files_to_process(
+        self,
+        files_on_disk: set[str],
+        previous_files: dict[str, Any],
+        force_full: bool,
+    ) -> tuple[list[Path], int, int]:
+        """Decide which files need (re)indexing by comparing hash/mtime."""
+        to_process: list[Path] = []
+        indexed_count = 0
+        updated_count = 0
+        for rel_path in sorted(files_on_disk):
+            abs_path = self.vault_root / rel_path
+            try:
+                stat = abs_path.stat()
+            except OSError:
+                continue
+            sha256 = self._sha256(abs_path)
+            entry = previous_files.get(rel_path)
+            if not force_full and entry is not None:
+                if entry.sha256 == sha256 and entry.mtime_ns == stat.st_mtime_ns:
+                    continue
+                updated_count += 1
+            else:
+                indexed_count += 1
+            to_process.append(abs_path)
+        return to_process, indexed_count, updated_count
+
+    async def _index_files(
+        self, to_process: list[Path], index: VaultIndex
+    ) -> list[dict[str, Any]]:
+        """Parse files into index entries, collecting errors."""
+        errors: list[dict[str, Any]] = []
+        for abs_path in to_process:
+            rel_path = str(abs_path.relative_to(self.vault_root))
+            try:
+                note = await self._parse_note(abs_path)
+                index.files[note.id] = IndexEntry(
+                    id=note.id,
+                    title=note.title,
+                    rel_path=rel_path,
+                    tags=note.tags,
+                    links=[link.target for link in note.explicit_links],
+                    sha256=self._sha256(abs_path),
+                    mtime_ns=abs_path.stat().st_mtime_ns,
+                    size_bytes=abs_path.stat().st_size,
+                )
+            except (VaultParseError, Exception) as exc:
+                errors.append({"path": rel_path, "error": str(exc)})
+                logger.warning("Failed to index %s: %s", rel_path, exc)
+        return errors
+
+    @staticmethod
+    def _mark_deleted(
+        previous_files: dict[str, Any],
+        files_on_disk: set[str],
+        index: VaultIndex,
+    ) -> None:
+        """Flag index entries whose files disappeared from disk."""
+        for rel_path, entry in previous_files.items():
+            if rel_path not in files_on_disk:
+                index.files[entry.id].deleted = True
 
     async def search_by_tags(
         self,
@@ -292,19 +311,27 @@ class VaultIndexer:
         a wiki note by ``id`` or filename stem, appends the output file
         ``rel_path`` to the wiki note's ``links`` list, creating a backlink.
         """
+        wiki_by_ref = self._wiki_lookup(index)
         for entry in index.files.values():
             if entry.deleted or not entry.rel_path.startswith("outputs/"):
                 continue
             for link_target in entry.links:
-                for wiki_entry in index.files.values():
-                    if wiki_entry.deleted or not wiki_entry.rel_path.startswith("wiki/"):
-                        continue
-                    wiki_id = Path(wiki_entry.rel_path).stem
-                    if wiki_entry.id == link_target or wiki_id == link_target:
-                        backlink = entry.rel_path
-                        if backlink not in wiki_entry.links:
-                            wiki_entry.links.append(backlink)
-                        break
+                wiki_entry = wiki_by_ref.get(link_target)
+                if wiki_entry is None:
+                    continue
+                if entry.rel_path not in wiki_entry.links:
+                    wiki_entry.links.append(entry.rel_path)
+
+    @staticmethod
+    def _wiki_lookup(index: VaultIndex) -> dict[str, Any]:
+        """Map wiki note id and filename stem to its live index entry."""
+        lookup: dict[str, Any] = {}
+        for wiki_entry in index.files.values():
+            if wiki_entry.deleted or not wiki_entry.rel_path.startswith("wiki/"):
+                continue
+            lookup.setdefault(wiki_entry.id, wiki_entry)
+            lookup.setdefault(Path(wiki_entry.rel_path).stem, wiki_entry)
+        return lookup
 
 
 def _now_utc() -> datetime:

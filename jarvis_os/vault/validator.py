@@ -201,6 +201,24 @@ class VaultValidator:
             )
 
 
+def _split_frontmatter_block(stripped: str) -> tuple[str, str]:
+    """Split stripped markdown into (yaml block, body) by delimiters."""
+    if not stripped.startswith(_FRONTMATTER_DELIM):
+        raise VaultParseError("Missing opening '---' frontmatter delimiter")
+
+    first_newline = stripped.find("\n")
+    if first_newline == -1:
+        raise VaultParseError("Unterminated frontmatter")
+
+    rest = stripped[first_newline + 1 :]
+    if not rest.startswith(_FRONTMATTER_DELIM):
+        closing = rest.find("\n---\n")
+        if closing == -1:
+            raise VaultParseError("Missing closing '---' delimiter")
+        return rest[:closing], rest[closing + 4 :]
+    return "", rest[4:]
+
+
 def parse_frontmatter_block(
     text: str,
     expected_id: str | None = None,
@@ -222,23 +240,7 @@ def parse_frontmatter_block(
         VaultParseError: If the markdown structure is invalid.
     """
     stripped = text.lstrip()
-    if not stripped.startswith(_FRONTMATTER_DELIM):
-        raise VaultParseError("Missing opening '---' frontmatter delimiter")
-
-    first_newline = stripped.find("\n")
-    if first_newline == -1:
-        raise VaultParseError("Unterminated frontmatter")
-
-    rest = stripped[first_newline + 1 :]
-    if not rest.startswith(_FRONTMATTER_DELIM):
-        closing = rest.find("\n---\n")
-        if closing == -1:
-            raise VaultParseError("Missing closing '---' delimiter")
-        block = rest[:closing]
-        body = rest[closing + 4 :]
-    else:
-        block = ""
-        body = rest[4:]
+    block, body = _split_frontmatter_block(stripped)
 
     try:
         data = yaml.safe_load(block) or {}

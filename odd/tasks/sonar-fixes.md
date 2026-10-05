@@ -36,8 +36,8 @@ Reporte 2026-10-05 (SonarQube 9.9 local, gate default OK): 1 BLOCKER S3516 (`han
 
 | ID | Task | Files | Status | Priority |
 |----|------|-------|--------|----------|
-| S-1 | BLOCKER S3516 + S3776 `handlers/bffla_idor.py:47` | `jarvis_os/skills/handlers/bffla_idor.py` + tests | pending | high |
-| S-2 | S3776 `devsecops/bffla_idor.py:257` (20→15) | `jarvis_os/skills/devsecops/bffla_idor.py` + tests | pending | high |
+| S-1 | BLOCKER S3516 + S3776 `handlers/bffla_idor.py:47` | `jarvis_os/skills/handlers/bffla_idor.py` + tests | done (`16dbc4c`, 27 passed) | high |
+| S-2 | S3776 `devsecops/bffla_idor.py:257` (20→15) | `jarvis_os/skills/devsecops/bffla_idor.py` + tests | done (`16dbc4c`, 27 passed) | high |
 | S-3 | S3776 vault (`indexer:59,287`, `search:48,170`, `graph:54`, `validator:204`) | `jarvis_os/vault/*.py` + tests | pending | high |
 | S-4 | S3776 handlers+plugins (`plan:74`, `tendencias:49`, `metricas:20`, `os_control:81`, `intent:71`, `opencode:164`, `voice client:441`) | varios + tests | pending | high |
 | S-5 | S3776 `voice_bridge/server.py:371` (134→15, el grande) | `jarvis_os/voice_bridge/server.py` + tests | pending | high |
