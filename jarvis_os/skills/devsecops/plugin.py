@@ -11,6 +11,8 @@ from jarvis_os.skills.base import BaseSkill, SkillPermission
 
 logger = logging.getLogger(__name__)
 
+_DEFAULT_LOCALSTACK_ENDPOINT = "http://localhost:4566"
+
 
 class DevSecOpsSkill(BaseSkill):
     """Skill for LocalStack and Docker infrastructure management."""
@@ -153,7 +155,7 @@ class DevSecOpsSkill(BaseSkill):
     async def _list_s3_objects(self, params: dict[str, Any]) -> dict[str, Any]:
         bucket = params.get("bucket", "")
         prefix = params.get("prefix", "")
-        endpoint = os.getenv("LOCALSTACK_ENDPOINT", "http://localhost:4566")
+        endpoint = os.getenv("LOCALSTACK_ENDPOINT", _DEFAULT_LOCALSTACK_ENDPOINT)
         try:
             import boto3  # type: ignore[import-untyped]
             s3 = boto3.client("s3", endpoint_url=endpoint)
@@ -164,7 +166,7 @@ class DevSecOpsSkill(BaseSkill):
             return {"status": "error", "message": f"S3 list failed: {exc}"}
 
     async def _list_dynamodb_tables(self, params: dict[str, Any]) -> dict[str, Any]:
-        endpoint = os.getenv("LOCALSTACK_ENDPOINT", "http://localhost:4566")
+        endpoint = os.getenv("LOCALSTACK_ENDPOINT", _DEFAULT_LOCALSTACK_ENDPOINT)
         try:
             import boto3  # type: ignore[import-untyped]
             dynamodb = boto3.client("dynamodb", endpoint_url=endpoint)
@@ -175,7 +177,7 @@ class DevSecOpsSkill(BaseSkill):
             return {"status": "error", "message": f"DynamoDB list failed: {exc}"}
 
     async def _list_sqs_queues(self, params: dict[str, Any]) -> dict[str, Any]:
-        endpoint = os.getenv("LOCALSTACK_ENDPOINT", "http://localhost:4566")
+        endpoint = os.getenv("LOCALSTACK_ENDPOINT", _DEFAULT_LOCALSTACK_ENDPOINT)
         try:
             import boto3  # type: ignore[import-untyped]
             sqs = boto3.client("sqs", endpoint_url=endpoint)

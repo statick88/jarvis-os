@@ -16,6 +16,8 @@ from typing import Any
 
 from pydantic import BaseModel, Field
 
+_TS_DESC = "UTC timestamp of the event"
+
 # ---------------------------------------------------------------------------
 # Enums
 # ---------------------------------------------------------------------------
@@ -42,7 +44,7 @@ class SkillExecutionStart(BaseModel):
     session_id: str = Field(..., description="Voice or text session identifier")
     timestamp: datetime = Field(
         default_factory=lambda: datetime.now(UTC),
-        description="UTC timestamp of the event",
+        description=_TS_DESC,
     )
     input_preview: str = Field(
         default="", description="Truncated input text for debugging"
@@ -76,7 +78,7 @@ class SkillExecutionComplete(BaseModel):
     )
     timestamp: datetime = Field(
         default_factory=lambda: datetime.now(UTC),
-        description="UTC timestamp of the event",
+        description=_TS_DESC,
     )
 
     def to_json(self) -> str:
@@ -107,7 +109,7 @@ class VoiceEvent(BaseModel):
     event_type: str = Field(..., description="open, close, stt_final, tts_chunk")
     timestamp: datetime = Field(
         default_factory=lambda: datetime.now(UTC),
-        description="UTC timestamp of the event",
+        description=_TS_DESC,
     )
     payload: dict[str, Any] = Field(
         default_factory=dict, description="Event-specific data"

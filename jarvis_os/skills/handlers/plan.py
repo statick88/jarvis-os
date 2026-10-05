@@ -16,6 +16,8 @@ from typing import Any
 logger = logging.getLogger(__name__)
 
 _PRIORITY_EMOJI = {"critical": "🟣", "high": "🔴", "medium": "🟡", "low": "🟢"}
+_BLOCKERS_HEADER = "## 🚫 Bloqueos"
+_ISO_ZULU_FMT = "%Y-%m-%dT%H:%M:%SZ"
 
 
 def run(input_data: dict[str, Any]) -> dict[str, Any]:
@@ -135,7 +137,7 @@ def _section_of(stripped: str) -> str | None:
         return None
     if stripped.startswith("## ✅ Tareas"):
         return "tasks"
-    if stripped.startswith("## 🚫 Bloqueos"):
+    if stripped.startswith(_BLOCKERS_HEADER):
         return "blockers"
     return "focus"
 
@@ -161,7 +163,7 @@ def _create(vault_path: Path, date_str: str, replace_all: bool = False) -> dict[
     path = _plan_path(vault_path, date_str)
     if path.exists() and not replace_all:
         return {"success": False, "error": "PLAN_EXISTS", "data": {"path": str(path.relative_to(vault_path))}}
-    ts = datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
+    ts = datetime.now(UTC).strftime(_ISO_ZULU_FMT)
     content = "\n".join([
         "---",
         f"id: plan_{date_str}",
@@ -181,7 +183,7 @@ def _create(vault_path: Path, date_str: str, replace_all: bool = False) -> dict[
         "",
         "## ✅ Tareas",
         "",
-        "## 🚫 Bloqueos",
+        _BLOCKERS_HEADER,
         "",
         "## 📝 Notas",
         "",
@@ -200,13 +202,13 @@ def _add_task(input_data: dict[str, Any], vault_path: Path, date_str: str) -> di
     emoji = _PRIORITY_EMOJI.get(priority, "🟡")
     task_counter = len(plan.get("tasks", [])) + 1
     task_id = f"tsk-{task_counter:03d}"
-    ts = datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
+    ts = datetime.now(UTC).strftime(_ISO_ZULU_FMT)
     line = f"- [ ] **{task_id}** {emoji} {text} — *{ts}*"
 
     path = _plan_path(vault_path, date_str)
     content = path.read_text(encoding="utf-8")
-    if "## 🚫 Bloqueos" in content:
-        content = content.replace("## 🚫 Bloqueos", f"{line}\n\n## 🚫 Bloqueos")
+    if _BLOCKERS_HEADER in content:
+        content = content.replace(_BLOCKERS_HEADER, f"{line}\n\n{_BLOCKERS_HEADER}")
     else:
         content = content.rstrip() + f"\n{line}\n"
     path.write_text(content, encoding="utf-8")
@@ -234,12 +236,12 @@ def _add_blocker(input_data: dict[str, Any], vault_path: Path, date_str: str) ->
     text = input_data.get("blocker", "").strip()
     if not text:
         return {"success": False, "error": "Blocker text cannot be empty"}
-    ts = datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
+    ts = datetime.now(UTC).strftime(_ISO_ZULU_FMT)
     blocker_id = f"blk-{len(_read_plan(vault_path, date_str).get('blockers', [])) + 1:03d}"
     line = f"- **{blocker_id}** ⏳ {text} — *{ts}*"
     path = _plan_path(vault_path, date_str)
     content = path.read_text(encoding="utf-8")
-    content = content.replace("## 🚫 Bloqueos", f"## 🚫 Bloqueos\n{line}")
+    content = content.replace(_BLOCKERS_HEADER, f"{_BLOCKERS_HEADER}\n{line}")
     path.write_text(content, encoding="utf-8")
     return {"success": True, "data": {"blocker_id": blocker_id}, "vault_changes": [{"path": str(path.relative_to(vault_path)), "operation": "UPDATE", "content": content}]}
 

@@ -28,6 +28,11 @@ NOTE_ID_RE = re.compile(r"^[a-zA-Z0-9][a-zA-Z0-9._:-]*$")
 # Inline wiki link inside a note body: [[target]] or [[target|alias]].
 WIKILINK_RE = re.compile(r"\[\[([^\]|#]+)(?:\|([^\]]+))?\]\]")
 
+# Shared Field descriptions (single source; Sonar S1192).
+_DESC_NOTE_ID = "Note id"
+_DESC_NOTE_TITLE = "Note title"
+_DESC_REL_PATH = "Path relative to the vault root"
+
 INDEX_VERSION = 1
 DEFAULT_SNIPPET_CHARS = 100
 MAX_SEARCH_RESULTS = 50
@@ -168,7 +173,7 @@ class NoteFrontmatter(BaseModel):
     """
 
     id: str = Field(..., description="Unique note id")
-    title: str = Field(..., min_length=1, max_length=200, description="Note title")
+    title: str = Field(..., min_length=1, max_length=200, description=_DESC_NOTE_TITLE)
     tags: list[str] = Field(default_factory=list, description="Tags attached to the note")
     links: list[str] = Field(
         default_factory=list, description="Explicit links[[...]] targets from frontmatter"
@@ -201,7 +206,7 @@ class VaultNote(BaseModel):
     frontmatter: NoteFrontmatter = Field(..., description="Validated frontmatter")
     content: str = Field(default="", description="Note body (markdown, without frontmatter)")
     path: Path = Field(..., description="Absolute path of the note file")
-    rel_path: str = Field(..., description="Path relative to the vault root")
+    rel_path: str = Field(..., description=_DESC_REL_PATH)
     word_count: int = Field(default=0, description="Words in the note body")
     explicit_links: list[NoteLink] = Field(
         default_factory=list, description="Links from links[[...]] and inline wikilinks"
@@ -234,9 +239,9 @@ class VaultNote(BaseModel):
 class IndexEntry(BaseModel):
     """One entry in ``.boveda_index.json``."""
 
-    id: str = Field(..., description="Note id")
-    title: str = Field(..., description="Note title")
-    rel_path: str = Field(..., description="Path relative to the vault root")
+    id: str = Field(..., description=_DESC_NOTE_ID)
+    title: str = Field(..., description=_DESC_NOTE_TITLE)
+    rel_path: str = Field(..., description=_DESC_REL_PATH)
     tags: list[str] = Field(default_factory=list, description="Tags attached to the note")
     links: list[str] = Field(default_factory=list, description="Explicit link targets")
     sha256: str = Field(..., description="SHA-256 of the note file")
@@ -270,9 +275,9 @@ class VaultIndex(BaseModel):
 class SearchResult(BaseModel):
     """One search hit, ranked by relevance score."""
 
-    id: str = Field(..., description="Note id")
-    title: str = Field(..., description="Note title")
-    rel_path: str = Field(..., description="Path relative to the vault root")
+    id: str = Field(..., description=_DESC_NOTE_ID)
+    title: str = Field(..., description=_DESC_NOTE_TITLE)
+    rel_path: str = Field(..., description=_DESC_REL_PATH)
     snippet: str = Field(default="", description="Highlighted excerpt around the first match")
     score: float = Field(default=0.0, description="Relevance score (higher is better)")
     tags: list[str] = Field(default_factory=list, description="Note tags")
@@ -285,8 +290,8 @@ class SearchResult(BaseModel):
 class GraphNode(BaseModel):
     """A node in the knowledge graph (one note)."""
 
-    id: str = Field(..., description="Note id")
-    title: str = Field(..., description="Note title")
+    id: str = Field(..., description=_DESC_NOTE_ID)
+    title: str = Field(..., description=_DESC_NOTE_TITLE)
     tags: list[str] = Field(default_factory=list, description="Note tags")
     depth: int = Field(default=0, description="Hop distance from the root note (0 = root or all)")
     is_orphan: bool = Field(default=False, description="True when the note has no links")

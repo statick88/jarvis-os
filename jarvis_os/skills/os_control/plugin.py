@@ -13,6 +13,8 @@ from jarvis_os.skills.sandbox import CommandSandbox
 
 logger = logging.getLogger(__name__)
 
+_PSUTIL_UNAVAILABLE = "psutil not available"
+
 try:
     import psutil  # type: ignore[import-untyped]
     _PSUTIL_AVAILABLE = True
@@ -98,7 +100,7 @@ class OSControlSkill(BaseSkill):
     async def _cpu_metrics() -> dict[str, Any]:
         """Collect CPU metrics (or an error when psutil is missing)."""
         if not _PSUTIL_AVAILABLE:
-            return {"error": "psutil not available"}
+            return {"error": _PSUTIL_UNAVAILABLE}
         return {
             "percent": await asyncio.to_thread(psutil.cpu_percent, interval=0),  # type: ignore[possibly-unbound]
             "count": psutil.cpu_count(),  # type: ignore[possibly-unbound]
@@ -109,7 +111,7 @@ class OSControlSkill(BaseSkill):
     def _ram_metrics() -> dict[str, Any]:
         """Collect RAM metrics (or an error when psutil is missing)."""
         if not _PSUTIL_AVAILABLE:
-            return {"error": "psutil not available"}
+            return {"error": _PSUTIL_UNAVAILABLE}
         mem = psutil.virtual_memory()  # type: ignore[possibly-unbound]
         return {
             "total_gb": round(mem.total / (1024 ** 3), 2),
@@ -121,7 +123,7 @@ class OSControlSkill(BaseSkill):
     def _disk_metrics() -> dict[str, Any]:
         """Collect disk metrics (or an error when psutil is missing)."""
         if not _PSUTIL_AVAILABLE:
-            return {"error": "psutil not available"}
+            return {"error": _PSUTIL_UNAVAILABLE}
         disk = psutil.disk_usage("/")  # type: ignore[possibly-unbound]
         return {
             "total_gb": round(disk.total / (1024 ** 3), 2),

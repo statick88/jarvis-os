@@ -59,6 +59,12 @@ except Exception:
     PB_AVAILABLE = False
 
 
+# Shared literals (single source; Sonar S1192).
+_PROTOBUF_UNAVAILABLE = "Protobuf not available"
+_DESC_SESSION_ID = "Session identifier"
+_DESC_LAST_CHUNK = "True if this is the last chunk"
+
+
 # ============================================================================
 # STT Models
 # ============================================================================
@@ -66,14 +72,14 @@ except Exception:
 class AudioChunk(BaseModel):
     """Audio chunk for streaming STT."""
     data: bytes = Field(..., description="PCM 16kHz 16-bit mono audio data")
-    is_final: bool = Field(False, description="True if this is the last chunk")
-    session_id: str = Field(default_factory=lambda: str(uuid4()), description="Session identifier")
+    is_final: bool = Field(False, description=_DESC_LAST_CHUNK)
+    session_id: str = Field(default_factory=lambda: str(uuid4()), description=_DESC_SESSION_ID)
     timestamp_ms: int = Field(0, description="Timestamp of first sample (Unix ms)")
 
     def to_protobuf(self) -> PbAudioChunk:
         """Convert to protobuf AudioChunk."""
         if not PB_AVAILABLE:
-            raise RuntimeError("Protobuf not available")
+            raise RuntimeError(_PROTOBUF_UNAVAILABLE)
         return PbAudioChunk(
             data=self.data,
             is_final=self.is_final,
@@ -103,7 +109,7 @@ class TranscribeRequest(BaseModel):
 
     def to_protobuf(self) -> PbTranscribeRequest:
         if not PB_AVAILABLE:
-            raise RuntimeError("Protobuf not available")
+            raise RuntimeError(_PROTOBUF_UNAVAILABLE)
         return PbTranscribeRequest(
             audio_data=self.audio_data,
             model=self.model,
@@ -134,7 +140,7 @@ class WordTimestamp(BaseModel):
 
     def to_protobuf(self) -> PbWordTimestamp:
         if not PB_AVAILABLE:
-            raise RuntimeError("Protobuf not available")
+            raise RuntimeError(_PROTOBUF_UNAVAILABLE)
         return PbWordTimestamp(
             word=self.word,
             start_ms=self.start_ms,
@@ -162,7 +168,7 @@ class SegmentTimestamp(BaseModel):
 
     def to_protobuf(self) -> PbSegmentTimestamp:
         if not PB_AVAILABLE:
-            raise RuntimeError("Protobuf not available")
+            raise RuntimeError(_PROTOBUF_UNAVAILABLE)
         return PbSegmentTimestamp(
             text=self.text,
             start_ms=self.start_ms,
@@ -194,7 +200,7 @@ class STTResponse(BaseModel):
 
     def to_protobuf(self) -> PbSTTResponse:
         if not PB_AVAILABLE:
-            raise RuntimeError("Protobuf not available")
+            raise RuntimeError(_PROTOBUF_UNAVAILABLE)
         return PbSTTResponse(
             text=self.text,
             confidence=self.confidence,
@@ -233,7 +239,7 @@ class TTSRequest(BaseModel):
 
     def to_protobuf(self) -> PbTTSRequest:
         if not PB_AVAILABLE:
-            raise RuntimeError("Protobuf not available")
+            raise RuntimeError(_PROTOBUF_UNAVAILABLE)
         return PbTTSRequest(
             text=self.text,
             voice=self.voice,
@@ -265,7 +271,7 @@ class SynthesizeResponse(BaseModel):
 
     def to_protobuf(self) -> PbSynthesizeResponse:
         if not PB_AVAILABLE:
-            raise RuntimeError("Protobuf not available")
+            raise RuntimeError(_PROTOBUF_UNAVAILABLE)
         return PbSynthesizeResponse(
             audio_data=self.audio_data,
             format=self.format,
@@ -293,7 +299,7 @@ class HealthRequest(BaseModel):
     """Health check request (empty)."""
     def to_protobuf(self) -> PbHealthRequest:
         if not PB_AVAILABLE:
-            raise RuntimeError("Protobuf not available")
+            raise RuntimeError(_PROTOBUF_UNAVAILABLE)
         return PbHealthRequest()
 
     @classmethod
@@ -313,7 +319,7 @@ class HealthResponse(BaseModel):
 
     def to_protobuf(self) -> PbHealthResponse:
         if not PB_AVAILABLE:
-            raise RuntimeError("Protobuf not available")
+            raise RuntimeError(_PROTOBUF_UNAVAILABLE)
         return PbHealthResponse(
             healthy=self.healthy,
             version=self.version,
@@ -349,7 +355,7 @@ class ModelInfo(BaseModel):
 
     def to_protobuf(self) -> PbModelInfo:
         if not PB_AVAILABLE:
-            raise RuntimeError("Protobuf not available")
+            raise RuntimeError(_PROTOBUF_UNAVAILABLE)
         return PbModelInfo(
             id=self.id,
             name=self.name,
@@ -377,7 +383,7 @@ class ListModelsRequest(BaseModel):
     """List models request (empty)."""
     def to_protobuf(self) -> PbListModelsRequest:
         if not PB_AVAILABLE:
-            raise RuntimeError("Protobuf not available")
+            raise RuntimeError(_PROTOBUF_UNAVAILABLE)
         return PbListModelsRequest()
 
     @classmethod
@@ -392,7 +398,7 @@ class ListModelsResponse(BaseModel):
 
     def to_protobuf(self) -> PbListModelsResponse:
         if not PB_AVAILABLE:
-            raise RuntimeError("Protobuf not available")
+            raise RuntimeError(_PROTOBUF_UNAVAILABLE)
         return PbListModelsResponse(
             stt_models=[m.to_protobuf() for m in self.stt_models],
             tts_voices=[m.to_protobuf() for m in self.tts_voices],
@@ -453,34 +459,34 @@ class SessionAck(BaseModel):
 
 class SessionClose(BaseModel):
     """Either side closes the session."""
-    session_id: str = Field(..., description="Session identifier")
+    session_id: str = Field(..., description=_DESC_SESSION_ID)
     reason: str = Field("client_disconnect", description="Close reason")
 
 
 class ErrorMsg(BaseModel):
     """Server sends error to client."""
-    session_id: str = Field(..., description="Session identifier")
+    session_id: str = Field(..., description=_DESC_SESSION_ID)
     code: str = Field(..., description="Machine-readable error code")
     message: str = Field(..., description="Human-readable error description")
 
 
 class AudioChunkMsg(BaseModel):
     """Binary audio chunk metadata (binary frame carries raw PCM)."""
-    session_id: str = Field(..., description="Session identifier")
-    is_final: bool = Field(False, description="True if this is the last chunk")
+    session_id: str = Field(..., description=_DESC_SESSION_ID)
+    is_final: bool = Field(False, description=_DESC_LAST_CHUNK)
     timestamp_ms: int = Field(0, description="Timestamp of first sample (Unix ms)")
 
 
 class STTPartial(BaseModel):
     """Partial transcription result."""
-    session_id: str = Field(..., description="Session identifier")
+    session_id: str = Field(..., description=_DESC_SESSION_ID)
     text: str = Field("", description="Partial transcribed text")
     confidence: float = Field(0.0, ge=0.0, le=1.0, description="Confidence score")
 
 
 class STTFinal(BaseModel):
     """Final transcription result."""
-    session_id: str = Field(..., description="Session identifier")
+    session_id: str = Field(..., description=_DESC_SESSION_ID)
     text: str = Field("", description="Final transcribed text")
     confidence: float = Field(0.0, ge=0.0, le=1.0, description="Confidence score")
     duration_ms: int = Field(0, description="Duration of processed audio in ms")
@@ -489,7 +495,7 @@ class STTFinal(BaseModel):
 
 class TTSInput(BaseModel):
     """Text chunk from LLM orchestrator for TTS synthesis."""
-    session_id: str = Field(..., description="Session identifier")
+    session_id: str = Field(..., description=_DESC_SESSION_ID)
     text: str = Field("", description="Text chunk to synthesize")
     voice: str = Field("es_ES-pacifico", description="Voice identifier")
     speed: float = Field(1.0, ge=0.5, le=2.0, description="Speech rate multiplier")
@@ -497,8 +503,8 @@ class TTSInput(BaseModel):
 
 class TTSChunk(BaseModel):
     """Synthesized audio chunk metadata (binary frame carries audio bytes)."""
-    session_id: str = Field(..., description="Session identifier")
+    session_id: str = Field(..., description=_DESC_SESSION_ID)
     format: str = Field("pcm", description="Audio format: pcm, wav, opus")
     sample_rate: int = Field(22050, description="Sample rate in Hz")
-    is_final: bool = Field(False, description="True if this is the last chunk")
+    is_final: bool = Field(False, description=_DESC_LAST_CHUNK)
     duration_ms: int = Field(0, description="Duration of audio chunk in ms")

@@ -22,6 +22,8 @@ from jarvis_os.vault.search import VaultSearch
 
 logger = logging.getLogger(__name__)
 
+_LOCAL_MODELS_DIR = "/app/models"
+
 # Tag-to-type mapping for nightly processing
 TAG_TYPE_MAP: dict[str, str] = {
     "#idea": "idea",
@@ -137,7 +139,7 @@ class NightlyLabsSkill(BaseSkill):
             pass
 
         # Check for .gguf model directories
-        gguf_dirs = list(Path("/app/models").glob("**/*.gguf")) if Path("/app/models").exists() else []
+        gguf_dirs = list(Path(_LOCAL_MODELS_DIR).glob("**/*.gguf")) if Path(_LOCAL_MODELS_DIR).exists() else []
         if gguf_dirs:
             self._llm_engine = "local_gguf"
             self._llm_available = True
@@ -362,7 +364,7 @@ class NightlyLabsSkill(BaseSkill):
     async def _run_local_gguf(self, prompt: str, timeout: int) -> str:
         """Run prompt using local GGUF model (via llama-cli)."""
         # Find first available .gguf model
-        model_paths = list(Path("/app/models").glob("**/*.gguf"))
+        model_paths = list(Path(_LOCAL_MODELS_DIR).glob("**/*.gguf"))
         if not model_paths:
             raise RuntimeError("No .gguf model files found")
 
