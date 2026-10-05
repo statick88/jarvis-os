@@ -1,13 +1,8 @@
 # Deploy documentation to GitHub Pages.
 #
-# Requires Pages to be enabled on the repository with "GitHub Actions" as the
-# source. It is not enabled today: the Setup Pages step fails with
-# "Get Pages site failed ... Not Found" (HTTP 404 on /repos/.../pages), which
-# is a repository setting rather than a code defect and cannot be fixed from
-# here. Until someone enables it, this workflow fails on every push to main.
-#
-# To enable: Settings > Pages > Build and deployment > Source: GitHub Actions.
-# The mkdocs configuration itself is verified: docs_dir is set, the three
+# Source: GitHub Actions (Settings > Pages > Build and deployment).
+# The github-pages environment allows branch main. Verified green 2026-10-05.
+# The mkdocs configuration itself is verified: docs_dir is set,
 # Placeholders resolved (statick88) and every file referenced by
 # the nav exists.
 
